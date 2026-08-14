@@ -30,18 +30,26 @@ DeepSeek Harness(dsh)的第三方插件:在 Web 界面右侧打开一个「项�
 指引文件里,不单列。GEMINI.md、COPILOT-INSTRUCTIONS.md、.cursorrules 等
 其它代理工具的文件 dsh 并不读取,因此不在清单中。
 
-| 分组 | 路径 | 形态 | 用途 |
-| --- | --- | --- | --- |
-| 项目指引 | `AGENTS.md` | 文件 | dsh 首选项目指引(dsh-agent-instructions,自项目根逐级合并到 cwd) |
-| 项目指引 | `CLAUDE.md` | 文件 | dsh 一等候选指引(与 AGENTS.md 内容去重后合并) |
-| 项目指引 | `AGENTS.local.md` | 文件 | AGENTS.md 的本地覆盖层(通常不入库) |
-| 项目指引 | `CLAUDE.local.md` | 文件 | CLAUDE.md 的本地覆盖层(通常不入库) |
-| Hooks | `hooks.json` | 文件 | Claude Code 方言 Hook 配置(dsh-hooks-claude-code,相对启动 cwd、进程启动时读一次) |
-| Hooks | `codex-hooks.json` | 文件 | Codex 方言 Hook 配置(dsh-hooks-codex,同上) |
-| 项目技能目录 | `.dsh/skills` | 目录 | dsh 项目技能根(dsh-skill-filesystem,整棵技能树) |
-| 项目技能目录 | `.agents/skills` | 目录 | 跨代理共享的项目技能根(整棵技能树) |
-| 环境变量 | `.env` | 文件 | dsh 启动时加载的环境变量文件(process.loadEnvFile,可能含 API 密钥,谨慎编辑) |
-| 会话记录 | `.sessions` | 目录 | dsh 会话 JSONL 持久化目录(ACP 组合默认) |
+| 分组 | 路径 | 形态 | 用途 | 默认组合生效? |
+| --- | --- | --- | --- | --- |
+| 项目指引 | `AGENTS.md` | 文件 | dsh 首选项目指引(dsh-agent-instructions,自项目根逐级合并到 cwd) | ✅ |
+| 项目指引 | `CLAUDE.md` | 文件 | dsh 一等候选指引(与 AGENTS.md 内容去重后合并) | ✅ |
+| 项目指引 | `AGENTS.local.md` | 文件 | AGENTS.md 的本地覆盖层(通常不入库) | ✅ |
+| 项目指引 | `CLAUDE.local.md` | 文件 | CLAUDE.md 的本地覆盖层(通常不入库) | ✅ |
+| Hooks | `hooks.json` | 文件 | Claude Code 方言 Hook 配置(原生 dsh-hooks-claude-code 桥;挂载后相对**启动目录**读取一次) | ⚠️ 桥未进 dsh-base/web-app/headless,目前仅 ACP 示例组合挂载 |
+| Hooks | `codex-hooks.json` | 文件 | Codex 方言 Hook 配置(原生 dsh-hooks-codex 桥;同上) | ⚠️ 同上 |
+| 项目技能目录 | `.dsh/skills` | 目录 | dsh 项目技能根(dsh-skill-filesystem,整棵技能树) | ✅ |
+| 项目技能目录 | `.agents/skills` | 目录 | 跨代理共享的项目技能根(整棵技能树) | ✅ |
+| 环境变量 | `.env` | 文件 | dsh 启动时从**启动目录**加载的环境变量文件(process.loadEnvFile,可能含 API 密钥,谨慎编辑) | ✅ |
+| 会话记录 | `.sessions` | 目录 | 会话 JSONL 持久化目录(ACP 组合的默认 persistenceRoot,相对启动目录) | ⚠️ ACP 示例组合的配置默认值,非内置机制 |
+
+补充两点精确性说明:
+
+- **挂钩是进程级的**:两种 hooks 方言的 `configPath` 都相对 **dsh 启动目录**解析、
+  进程启动时读一次;项目级自动发现(`session/new.cwd` 下的 hooks.json)是上游
+  明确 deferred 的 TODO。面板按会话 cwd 展示这些文件,两者在「从项目目录启动
+  dsh」时才指向同一处。
+- **`.env` 与 `.sessions` 同理**相对启动目录;面板管理的是会话工作区里的同名文件。
 
 目录条目(`kind: 'dir'`)只在 list 里展示存在性与顶层条目数,read/write/
 removeFile 会被宿主端拒绝——技能树与会话日志不由本面板管理。
