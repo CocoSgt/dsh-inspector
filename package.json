@@ -1,6 +1,6 @@
 {
   "name": "dsh-inspector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Inspect and manage the live instruction chain and project skills for the current dsh session, with in-place creation and editing — what you see is what the model gets",
   "type": "module",
   "license": "MIT",
@@ -56,5 +56,21 @@
     "tsdown": "^0.22.14",
     "typescript": "^5.9.2",
     "zod": "^4.4.3"
-  }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "deepseek",
+    "deepseek-harness",
+    "deepseek-ai",
+    "cordis",
+    "plugin",
+    "ai-agent",
+    "coding-agent",
+    "inspector",
+    "devtools",
+    "debugging",
+    "instruction-chain",
+    "skills"
+  ]
 }
