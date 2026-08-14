@@ -1,5 +1,5 @@
 /**
- * dsh-context-inspector 浏览器端插件。
+ * dsh-inspector 浏览器端插件。
  *
  * 职责:把手写的 projectFiles 调用描述符挂载到 ctx.remote($mount),
  * 注册 zh/en 词典到 ctx.locale,然后向两个 slot 注册 UI —— shell.overlay
@@ -55,10 +55,10 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ensureStyles()
 
   const disposeRemote = await ctx.remote.$mount({
-    package: 'dsh-context-inspector',
+    package: 'dsh-inspector',
     descriptors: buildDescriptors(),
   })
-  ctx.effect(() => () => { void disposeRemote() }, 'dsh-context-inspector: remote descriptor mount')
+  ctx.effect(() => () => { void disposeRemote() }, 'dsh-inspector: remote descriptor mount')
 
   const store = createPanelStore()
 
@@ -68,7 +68,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
     ctx.effect(() => {
       const dispose = localeCtx.locale.register(NS, { zh, en })
       return () => { if (typeof dispose === 'function') dispose() }
-    }, 'dsh-context-inspector: register dictionaries')
+    }, 'dsh-inspector: register dictionaries')
   })
 
   // 远端命名空间服务 remote.projectFiles 由上面的 $mount 创建,不能写进静态
@@ -80,7 +80,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
     ctx.slots.inject('shell.overlay', () => ctx.slots.register({
       name: 'shell.overlay',
-      id: 'dsh-context-inspector',
+      id: 'dsh-inspector',
       order: 20,
       locale: NS,
       inject: (): Record<string, unknown> => ({ api, sessions: ctx.sessions, store }),
@@ -88,7 +88,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
     ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
       name: 'conversation.session.header.utilities',
-      id: 'dsh-context-inspector',
+      id: 'dsh-inspector',
       order: 30,
       locale: NS,
       inject: (): Record<string, unknown> => ({ store }),

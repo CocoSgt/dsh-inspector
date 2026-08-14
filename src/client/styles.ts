@@ -1,6 +1,6 @@
 /**
- * 面板样式:一段以 <style data-plugin="dsh-context-inspector"> 注入的 CSS,
- * 类名统一 dpf- 前缀避免与其它插件冲突。
+ * 面板样式:一段以 <style data-plugin="dsh-inspector"> 注入的 CSS,
+ * 类名统一 dsi- 前缀避免与其它插件冲突。
  * 颜色全部走官方全局 --dsw-alias-* 设计令牌,深浅色随宿主主题自动适配
  * (不自带 prefers-color-scheme 分支);字号/圆角/控件高度沿用官方设置页
  * 词汇(卡片 r12、输入 r8、密集胶囊 h28 r14)。
@@ -8,7 +8,7 @@
  */
 
 const CSS = `
-.dpf-panel {
+.dsi-panel {
   pointer-events: auto;
   position: fixed;
   top: 0;
@@ -24,19 +24,19 @@ const CSS = `
   font-size: 13px;
   z-index: 60;
 }
-.dpf-header {
+.dsi-header {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
 }
-.dpf-title {
+.dsi-title {
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
 }
-.dpf-path {
+.dsi-path {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -46,7 +46,7 @@ const CSS = `
   direction: rtl;
   text-align: left;
 }
-.dpf-close {
+.dsi-close {
   border: none;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -56,24 +56,24 @@ const CSS = `
   cursor: pointer;
   border-radius: 6px;
 }
-.dpf-close:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-body {
+.dsi-close:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-body {
   flex: 1;
   overflow-y: auto;
   padding: 10px 14px 14px;
 }
-.dpf-hint {
+.dsi-hint {
   color: var(--dsw-alias-label-tertiary);
   padding: 18px 4px;
   line-height: 1.7;
 }
-.dpf-caption {
+.dsi-caption {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 1.6;
   margin: 4px 2px 8px;
 }
-.dpf-footnote {
+.dsi-footnote {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 1.6;
@@ -81,27 +81,27 @@ const CSS = `
   padding-top: 8px;
   border-top: 1px dashed var(--dsw-alias-border-l2);
 }
-.dpf-section-title {
+.dsi-section-title {
   margin: 16px 2px 4px;
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--dsw-alias-label-secondary);
 }
-.dpf-layer {
+.dsi-layer {
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
   padding: 8px 10px;
   margin: 8px 0;
 }
-.dpf-layer-head {
+.dsi-layer-head {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
   padding: 2px 2px 6px;
 }
-.dpf-layer-title {
+.dsi-layer-title {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -110,7 +110,7 @@ const CSS = `
   font-family: var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12.5px;
 }
-.dpf-tag {
+.dsi-tag {
   flex: none;
   padding: 1px 6px;
   border: 1px solid var(--dsw-alias-border-l3);
@@ -120,7 +120,7 @@ const CSS = `
   color: var(--dsw-alias-label-secondary);
   white-space: nowrap;
 }
-.dpf-newbtn {
+.dsi-newbtn {
   margin-left: auto;
   border: none;
   background: transparent;
@@ -132,18 +132,18 @@ const CSS = `
   border-radius: 6px;
   white-space: nowrap;
 }
-.dpf-newbtn:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-layer-empty {
+.dsi-newbtn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-layer-empty {
   color: var(--dsw-alias-label-dimmed);
   font-size: 12px;
   padding: 4px 2px 6px;
 }
-.dpf-choose {
+.dsi-choose {
   border-top: 1px dashed var(--dsw-alias-border-l2);
   margin-top: 4px;
   padding-top: 4px;
 }
-.dpf-choose-row {
+.dsi-choose-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -157,14 +157,14 @@ const CSS = `
   cursor: pointer;
   font: inherit;
 }
-.dpf-choose-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-choose-note {
+.dsi-choose-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-choose-note {
   margin-left: auto;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
   white-space: nowrap;
 }
-.dpf-row {
+.dsi-row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -179,15 +179,15 @@ const CSS = `
   cursor: pointer;
   font: inherit;
 }
-.dpf-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-dirrow {
+.dsi-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-dirrow {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
   margin: 2px 0;
 }
-.dpf-dirrow-btn {
+.dsi-dirrow-btn {
   width: 100%;
   border: 1px solid transparent;
   border-radius: 8px;
@@ -197,23 +197,23 @@ const CSS = `
   font: inherit;
   text-align: left;
 }
-.dpf-dirrow-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-skill-list {
+.dsi-dirrow-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-skill-list {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 2px 10px 8px 22px;
 }
-.dpf-skill-pill-btn {
+.dsi-skill-pill-btn {
   cursor: pointer;
   background: transparent;
   font: inherit;
 }
-.dpf-skill-pill-btn:hover {
+.dsi-skill-pill-btn:hover {
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
 }
-.dpf-skill-pill {
+.dsi-skill-pill {
   padding: 1px 8px;
   border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 10px;
@@ -222,11 +222,11 @@ const CSS = `
   font-family: var(--ds-font-family-code, ui-monospace, monospace);
   color: var(--dsw-alias-label-secondary);
 }
-.dpf-row-name {
+.dsi-row-name {
   font-weight: 600;
   font-family: var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 }
-.dpf-row-main {
+.dsi-row-main {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -234,7 +234,7 @@ const CSS = `
   gap: 6px;
   flex-wrap: wrap;
 }
-.dpf-chip {
+.dsi-chip {
   flex: none;
   padding: 1px 6px;
   border-radius: 4px;
@@ -244,23 +244,23 @@ const CSS = `
   color: var(--dsw-alias-label-secondary);
   white-space: nowrap;
 }
-.dpf-chip-warn {
+.dsi-chip-warn {
   background: transparent;
   border: 1px solid var(--dsw-alias-state-error-primary);
   color: var(--dsw-alias-state-error-primary);
 }
-.dpf-row-meta {
+.dsi-row-meta {
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
   white-space: nowrap;
 }
-.dpf-editor-head {
+.dsi-editor-head {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
 }
-.dpf-editor-name {
+.dsi-editor-name {
   font-weight: 600;
   font-family: var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
   flex: 1;
@@ -269,11 +269,11 @@ const CSS = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dpf-dirty {
+.dsi-dirty {
   color: var(--dsw-alias-brand-primary);
   margin-left: 6px;
 }
-.dpf-guard {
+.dsi-guard {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -285,12 +285,12 @@ const CSS = `
   background: var(--dsw-alias-bg-module-platform);
   font-size: 12px;
 }
-.dpf-editor-meta {
+.dsi-editor-meta {
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
   margin-bottom: 8px;
 }
-.dpf-editor {
+.dsi-editor {
   width: 100%;
   min-height: 300px;
   flex: 1;
@@ -305,15 +305,15 @@ const CSS = `
   line-height: 1.6;
   padding: 10px;
 }
-.dpf-editor:focus { outline: none; border-color: var(--dsw-alias-brand-primary); }
-.dpf-toolbar {
+.dsi-editor:focus { outline: none; border-color: var(--dsw-alias-brand-primary); }
+.dsi-toolbar {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
   margin-top: 10px;
 }
-.dpf-btn {
+.dsi-btn {
   box-sizing: border-box;
   display: inline-flex;
   align-items: center;
@@ -329,23 +329,23 @@ const CSS = `
   font-size: 12px;
   line-height: 18px;
 }
-.dpf-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-btn:disabled { opacity: 0.4; cursor: default; }
-.dpf-btn-primary {
+.dsi-btn:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-btn:disabled { opacity: 0.4; cursor: default; }
+.dsi-btn-primary {
   border: none;
   background: var(--dsw-alias-button-primary-fill);
   color: var(--dsw-alias-label-primary-foreground);
 }
-.dpf-btn-primary:hover { background: var(--dsw-alias-button-primary-hover); }
-.dpf-btn-danger { color: var(--dsw-alias-state-error-primary); }
-.dpf-btn-danger:hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
-.dpf-status {
+.dsi-btn-primary:hover { background: var(--dsw-alias-button-primary-hover); }
+.dsi-btn-danger { color: var(--dsw-alias-state-error-primary); }
+.dsi-btn-danger:hover { background: var(--dsw-alias-interactive-bg-hover-danger); }
+.dsi-status {
   font-size: 12px;
   min-height: 18px;
   color: var(--dsw-alias-label-tertiary);
 }
-.dpf-status-error { color: var(--dsw-alias-state-error-primary); }
-.dpf-toggle {
+.dsi-status-error { color: var(--dsw-alias-state-error-primary); }
+.dsi-toggle {
   pointer-events: auto;
   display: inline-flex;
   align-items: center;
@@ -360,8 +360,8 @@ const CSS = `
   font-size: 12px;
   line-height: 1.6;
 }
-.dpf-toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
-.dpf-toggle-active {
+.dsi-toggle:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dsi-toggle-active {
   background: var(--dsw-alias-interactive-bg-hover-accent);
   border-color: var(--dsw-alias-brand-primary);
 }
@@ -370,9 +370,9 @@ const CSS = `
 /** 幂等注入插件样式表(每次 materialization 至多一个标签)。 */
 export function ensureStyles(): void {
   if (typeof document === 'undefined') return
-  if (document.querySelector('style[data-plugin="dsh-context-inspector"]') !== null) return
+  if (document.querySelector('style[data-plugin="dsh-inspector"]') !== null) return
   const tag = document.createElement('style')
-  tag.dataset.plugin = 'dsh-context-inspector'
+  tag.dataset.plugin = 'dsh-inspector'
   tag.textContent = CSS
   document.head.appendChild(tag)
 }

@@ -1,12 +1,12 @@
 {
-  "name": "dsh-context-inspector",
+  "name": "dsh-inspector",
   "version": "0.1.0",
   "description": "Inspect and manage the live instruction chain and project skills for the current dsh session, with in-place creation and editing — what you see is what the model gets",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CocoSgt/dsh-context-inspector.git"
+    "url": "git+https://github.com/CocoSgt/dsh-inspector.git"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

@@ -16,11 +16,11 @@ const stringParameter = (name: string, typeSymbol: string): ParameterDescriptor 
   codec: { mode: 'strict', typeSymbol, schema: z.string() },
 })
 
-const cwdParameter = stringParameter('cwd', 'dsh-context-inspector#Cwd')
-const scopeParameter = stringParameter('scope', 'dsh-context-inspector#Scope')
-const dirParameter = stringParameter('dir', 'dsh-context-inspector#Dir')
-const nameParameter = stringParameter('name', 'dsh-context-inspector#Name')
-const contentParameter = stringParameter('content', 'dsh-context-inspector#Content')
+const cwdParameter = stringParameter('cwd', 'dsh-inspector#Cwd')
+const scopeParameter = stringParameter('scope', 'dsh-inspector#Scope')
+const dirParameter = stringParameter('dir', 'dsh-inspector#Dir')
+const nameParameter = stringParameter('name', 'dsh-inspector#Name')
+const contentParameter = stringParameter('content', 'dsh-inspector#Content')
 
 const instructionFileMeta = z.object({
   name: z.string(),
@@ -90,65 +90,65 @@ const resultCodec = (symbol: string, schema: { parse(value: unknown): unknown })
   ({ mode: 'strict', typeSymbol: symbol, schema })
 
 const addressParameters = [cwdParameter, scopeParameter, dirParameter, nameParameter]
-const rootParameter = stringParameter('root', 'dsh-context-inspector#SkillRoot')
-const skillPathParameter = stringParameter('skillPath', 'dsh-context-inspector#SkillPath')
+const rootParameter = stringParameter('root', 'dsh-inspector#SkillRoot')
+const skillPathParameter = stringParameter('skillPath', 'dsh-inspector#SkillPath')
 
 /** 构造 projectFiles 命名空间的全部调用描述符。 */
 export function buildDescriptors(): readonly InvocationDescriptorLike[] {
   return [
     {
-      id: 'dsh-context-inspector#projectFiles/overview',
+      id: 'dsh-inspector#projectFiles/overview',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'overview',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter],
-      result: resultCodec('dsh-context-inspector#OverviewResult', overviewOutcome),
+      result: resultCodec('dsh-inspector#OverviewResult', overviewOutcome),
     },
     {
-      id: 'dsh-context-inspector#projectFiles/readFile',
+      id: 'dsh-inspector#projectFiles/readFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'readFile',
       invocation: { kind: 'direct' },
       parameters: addressParameters,
-      result: resultCodec('dsh-context-inspector#ReadResult', readOutcome),
+      result: resultCodec('dsh-inspector#ReadResult', readOutcome),
     },
     {
-      id: 'dsh-context-inspector#projectFiles/readSkillFile',
+      id: 'dsh-inspector#projectFiles/readSkillFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'readSkillFile',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter, rootParameter, skillPathParameter],
-      result: resultCodec('dsh-context-inspector#ReadResult', readOutcome),
+      result: resultCodec('dsh-inspector#ReadResult', readOutcome),
     },
     {
-      id: 'dsh-context-inspector#projectFiles/writeSkillFile',
+      id: 'dsh-inspector#projectFiles/writeSkillFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'writeSkillFile',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter, rootParameter, skillPathParameter, contentParameter],
-      result: resultCodec('dsh-context-inspector#WriteResult', writeOutcome),
+      result: resultCodec('dsh-inspector#WriteResult', writeOutcome),
     },
     {
-      id: 'dsh-context-inspector#projectFiles/writeFile',
+      id: 'dsh-inspector#projectFiles/writeFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'writeFile',
       invocation: { kind: 'direct' },
       parameters: [...addressParameters, contentParameter],
-      result: resultCodec('dsh-context-inspector#WriteResult', writeOutcome),
+      result: resultCodec('dsh-inspector#WriteResult', writeOutcome),
     },
     {
-      id: 'dsh-context-inspector#projectFiles/removeFile',
+      id: 'dsh-inspector#projectFiles/removeFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'removeFile',
       invocation: { kind: 'direct' },
       parameters: addressParameters,
-      result: resultCodec('dsh-context-inspector#RemoveResult', removeOutcome),
+      result: resultCodec('dsh-inspector#RemoveResult', removeOutcome),
     },
   ]
 }

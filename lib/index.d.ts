@@ -1,5 +1,5 @@
 /**
- * dsh-context-inspector 宿主端:projectFiles 网关服务。
+ * dsh-inspector 宿主端:projectFiles 网关服务。
  *
  * 继承 TypertRemoteService 后,Typert Gateway 以 SRC 模式自动发现本服务;
  * 第三方双副本场景下 SRC 发现失明,因此同时把弱(src-json)清单注册进宿主

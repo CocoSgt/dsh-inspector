@@ -1,5 +1,5 @@
 /**
- * dsh-context-inspector 宿主端:projectFiles 网关服务。
+ * dsh-inspector 宿主端:projectFiles 网关服务。
  *
  * 继承 TypertRemoteService 后,Typert Gateway 以 SRC 模式自动发现本服务;
  * 第三方双副本场景下 SRC 发现失明,因此同时把弱(src-json)清单注册进宿主
@@ -284,7 +284,7 @@ function jsonParameter(name: string): WeakInvocation['parameters'][number] {
 
 function invocation(method: string, parameters: readonly string[]): WeakInvocation {
   return {
-    id: `dsh-context-inspector#projectFiles/${method}`,
+    id: `dsh-inspector#projectFiles/${method}`,
     service: 'projectFiles',
     namespace: 'projectFiles',
     method,
@@ -307,7 +307,7 @@ function invocation(method: string, parameters: readonly string[]): WeakInvocati
  * ctx.typert.register() 给无 ./typert 构件的贡献。
  */
 const TYPERT_MANIFEST = {
-  package: 'dsh-context-inspector',
+  package: 'dsh-inspector',
   face: 'host',
   schemas: [],
   model: { services: [], events: [], objects: [] },

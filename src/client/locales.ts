@@ -1,5 +1,5 @@
 /**
- * dsh-context-inspector 客户端词典(zh 为键集真源,en 与之对齐)。
+ * dsh-inspector 客户端词典(zh 为键集真源,en 与之对齐)。
  *
  * 键域覆盖三块:
  * 1. 面板/开关/编辑器的 UI 文案(slot 注册声明 locale: NS,组件从 t 标准位读取);
@@ -11,7 +11,7 @@
  */
 
 /** 词典命名空间(注册进宿主 locale 服务的键)。 */
-export const NS = 'dsh-context-inspector'
+export const NS = 'dsh-inspector'
 
 /** 简体中文词典(键集真源)。 */
 export const zh = {

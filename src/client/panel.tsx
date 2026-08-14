@@ -1,5 +1,5 @@
 /**
- * 「约束文件」面板与头部开关按钮(dsh-context-inspector)。
+ * 「约束文件」面板与头部开关按钮(dsh-inspector)。
  *
  * 面板注册在 shell.overlay(root 作用域,浮动右栏,additive);开关按钮注册
  * 在 conversation.session.header.utilities(session 作用域)。面板跟随当前
@@ -139,13 +139,13 @@ function PanelShell(props: {
 }): ReactNode {
   const { cwd, store, t, children } = props
   return (
-    <div className="dpf-panel" role="complementary" aria-label={t('panel.title')}>
-      <div className="dpf-header">
-        <span className="dpf-title">{t('panel.title')}</span>
-        <span className="dpf-path" title={cwd ?? ''}>{cwd ?? ''}</span>
-        <button type="button" className="dpf-close" aria-label={t('panel.close')} onClick={() => { store.close() }}>✕</button>
+    <div className="dsi-panel" role="complementary" aria-label={t('panel.title')}>
+      <div className="dsi-header">
+        <span className="dsi-title">{t('panel.title')}</span>
+        <span className="dsi-path" title={cwd ?? ''}>{cwd ?? ''}</span>
+        <button type="button" className="dsi-close" aria-label={t('panel.close')} onClick={() => { store.close() }}>✕</button>
       </div>
-      <div className="dpf-body">{children}</div>
+      <div className="dsi-body">{children}</div>
     </div>
   )
 }
@@ -171,14 +171,14 @@ function FileRow(props: { meta: InstructionFileMeta; t: TFunc; onOpen: () => voi
   if (meta.duplicateOf !== undefined) chips.push({ text: t('chip.duplicate', { name: meta.duplicateOf }), tone: 'muted' })
   if (meta.oversized === true) chips.push({ text: t('chip.oversized'), tone: 'warn' })
   return (
-    <button type="button" className="dpf-row" onClick={onOpen}>
-      <span className="dpf-row-main">
-        <span className="dpf-row-name">{meta.name}</span>
+    <button type="button" className="dsi-row" onClick={onOpen}>
+      <span className="dsi-row-main">
+        <span className="dsi-row-name">{meta.name}</span>
         {chips.map(chip => (
-          <span key={chip.text} className={chip.tone === 'warn' ? 'dpf-chip dpf-chip-warn' : 'dpf-chip'}>{chip.text}</span>
+          <span key={chip.text} className={chip.tone === 'warn' ? 'dsi-chip dsi-chip-warn' : 'dsi-chip'}>{chip.text}</span>
         ))}
       </span>
-      <span className="dpf-row-meta">{`${formatTime(meta.mtimeIso)} · ${formatSize(meta.size)}`}</span>
+      <span className="dsi-row-meta">{`${formatTime(meta.mtimeIso)} · ${formatSize(meta.size)}`}</span>
     </button>
   )
 }
@@ -198,14 +198,14 @@ function LayerCard(props: {
   // 全局层没有候选可选(只认 AGENTS.md);项目层默认只推荐缺失的候选。
   const creatable = missing.filter(meta => TEMPLATE_NAMES.includes(meta.name))
   return (
-    <section className="dpf-layer">
-      <div className="dpf-layer-head">
-        <span className="dpf-layer-title" title={title}>{title}</span>
-        {tags.map(tag => <span key={tag} className="dpf-tag">{tag}</span>)}
+    <section className="dsi-layer">
+      <div className="dsi-layer-head">
+        <span className="dsi-layer-title" title={title}>{title}</span>
+        {tags.map(tag => <span key={tag} className="dsi-tag">{tag}</span>)}
         {creatable.length > 0 && (
           <button
             type="button"
-            className="dpf-newbtn"
+            className="dsi-newbtn"
             aria-expanded={choosing}
             onClick={() => { setChoosing(value => !value) }}
           >
@@ -214,19 +214,19 @@ function LayerCard(props: {
         )}
       </div>
       {existing.length === 0 && !choosing
-        ? <div className="dpf-layer-empty">{t('layer.empty')}</div>
+        ? <div className="dsi-layer-empty">{t('layer.empty')}</div>
         : existing.map(meta => <FileRow key={meta.name} meta={meta} t={t} onOpen={() => { onOpen(meta) }} />)}
       {choosing && (
-        <div className="dpf-choose">
+        <div className="dsi-choose">
           {creatable.map(meta => (
             <button
               key={meta.name}
               type="button"
-              className="dpf-choose-row"
+              className="dsi-choose-row"
               onClick={() => { setChoosing(false); onCreate(meta.name) }}
             >
-              <span className="dpf-row-name">{meta.name}</span>
-              <span className="dpf-choose-note">{candidateNote(meta.name, t)}</span>
+              <span className="dsi-row-name">{meta.name}</span>
+              <span className="dsi-choose-note">{candidateNote(meta.name, t)}</span>
             </button>
           ))}
         </div>
@@ -336,24 +336,24 @@ function FileEditor(props: {
   const displayDir = target.scope === 'global' ? '~/.dsh' : target.dir === '' ? t('layer.projectRoot') : target.dir
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-      <div className="dpf-editor-head">
-        <button type="button" className="dpf-btn" onClick={requestBack}>{t('editor.back')}</button>
-        <span className="dpf-editor-name">
+      <div className="dsi-editor-head">
+        <button type="button" className="dsi-btn" onClick={requestBack}>{t('editor.back')}</button>
+        <span className="dsi-editor-name">
           {displayDir} / {target.name}
-          {dirty ? <span className="dpf-dirty" title={t('editor.dirty')}>●</span> : null}
+          {dirty ? <span className="dsi-dirty" title={t('editor.dirty')}>●</span> : null}
         </span>
       </div>
-      <div className="dpf-editor-meta">{content === undefined ? t('editor.loading') : meta}</div>
+      <div className="dsi-editor-meta">{content === undefined ? t('editor.loading') : meta}</div>
       {confirmDiscard && (
-        <div className="dpf-guard">
+        <div className="dsi-guard">
           <span>{t('guard.unsaved')}</span>
-          <button type="button" className="dpf-btn dpf-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>{t('guard.saveBack')}</button>
-          <button type="button" className="dpf-btn dpf-btn-danger" onClick={onBack}>{t('guard.discard')}</button>
-          <button type="button" className="dpf-btn" onClick={() => { setConfirmDiscard(false) }}>{t('guard.keepEditing')}</button>
+          <button type="button" className="dsi-btn dsi-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>{t('guard.saveBack')}</button>
+          <button type="button" className="dsi-btn dsi-btn-danger" onClick={onBack}>{t('guard.discard')}</button>
+          <button type="button" className="dsi-btn" onClick={() => { setConfirmDiscard(false) }}>{t('guard.keepEditing')}</button>
         </div>
       )}
       <textarea
-        className="dpf-editor"
+        className="dsi-editor"
         value={content ?? ''}
         disabled={content === undefined || busy}
         spellCheck={false}
@@ -365,21 +365,21 @@ function FileEditor(props: {
           }
         }}
       />
-      <div className="dpf-toolbar">
-        <button type="button" className="dpf-btn dpf-btn-primary" disabled={content === undefined || busy || (!dirty && !target.create)} onClick={save}>
+      <div className="dsi-toolbar">
+        <button type="button" className="dsi-btn dsi-btn-primary" disabled={content === undefined || busy || (!dirty && !target.create)} onClick={save}>
           {target.create ? t('editor.saveNew') : t('editor.save')}
         </button>
         {target.create ? null : confirmDelete
           ? (
             <>
-              <button type="button" className="dpf-btn dpf-btn-danger" disabled={busy} onClick={remove}>{t('editor.confirmDelete')}</button>
-              <button type="button" className="dpf-btn" disabled={busy} onClick={() => { setConfirmDelete(false) }}>{t('editor.cancel')}</button>
+              <button type="button" className="dsi-btn dsi-btn-danger" disabled={busy} onClick={remove}>{t('editor.confirmDelete')}</button>
+              <button type="button" className="dsi-btn" disabled={busy} onClick={() => { setConfirmDelete(false) }}>{t('editor.cancel')}</button>
             </>
           )
           : (
-            <button type="button" className="dpf-btn dpf-btn-danger" disabled={content === undefined || busy} onClick={() => { setConfirmDelete(true) }}>{t('editor.delete')}</button>
+            <button type="button" className="dsi-btn dsi-btn-danger" disabled={content === undefined || busy} onClick={() => { setConfirmDelete(true) }}>{t('editor.delete')}</button>
           )}
-        {status === undefined ? null : <span className={status.error ? 'dpf-status dpf-status-error' : 'dpf-status'}>{status.text}</span>}
+        {status === undefined ? null : <span className={status.error ? 'dsi-status dsi-status-error' : 'dsi-status'}>{status.text}</span>}
       </div>
     </div>
   )
@@ -425,7 +425,7 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
   if (cwd === undefined) {
     return (
       <PanelShell cwd={undefined} store={store} t={t}>
-        <div className="dpf-hint">{t('panel.noSession.title')}<br />{t('panel.noSession.body')}</div>
+        <div className="dsi-hint">{t('panel.noSession.title')}<br />{t('panel.noSession.body')}</div>
       </PanelShell>
     )
   }
@@ -445,11 +445,11 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
 
   return (
     <PanelShell cwd={cwd} store={store} t={t}>
-      {loading && overview === undefined ? <div className="dpf-hint">{t('panel.loading')}</div> : null}
-      {listError !== undefined ? <div className="dpf-status dpf-status-error">{`${t('panel.err.load')}: ${listError}`}</div> : null}
+      {loading && overview === undefined ? <div className="dsi-hint">{t('panel.loading')}</div> : null}
+      {listError !== undefined ? <div className="dsi-status dsi-status-error">{`${t('panel.err.load')}: ${listError}`}</div> : null}
       {overview === undefined ? null : (
         <>
-          <div className="dpf-caption">
+          <div className="dsi-caption">
             {t('panel.caption')}
           </div>
           {overview.layers.map(layer => (
@@ -465,11 +465,11 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
               }}
             />
           ))}
-          <div className="dpf-footnote">
+          <div className="dsi-footnote">
             {overview.cwdRel === '' ? t('panel.footnote.root') : t('panel.footnote.cwd')}
           </div>
-          <h3 className="dpf-section-title">{t('panel.skills.title')}</h3>
-          <div className="dpf-caption">{t('panel.skills.caption')}</div>
+          <h3 className="dsi-section-title">{t('panel.skills.title')}</h3>
+          <div className="dsi-caption">{t('panel.skills.caption')}</div>
           {overview.skills.map(skill => (
             <SkillRootRow
               key={skill.displayPath}
@@ -493,7 +493,7 @@ export function ProjectFilesToggle(props: ToggleProps): ReactNode {
   return (
     <button
       type="button"
-      className={open ? 'dpf-toggle dpf-toggle-active' : 'dpf-toggle'}
+      className={open ? 'dsi-toggle dsi-toggle-active' : 'dsi-toggle'}
       aria-pressed={open}
       title={t('toggle.title', { names: BASE_CANDIDATES.join(' / ') })}
       onClick={() => { store.toggle() }}
@@ -514,31 +514,31 @@ function SkillRootRow({ skill, t, onOpenSkill }: {
   const expandable = skill.exists && (skill.skills?.length ?? 0) > 0
   const row = (
     <>
-      <span className="dpf-row-main">
-        <span className="dpf-row-name">{skill.displayPath}/</span>
-        <span className="dpf-chip">{skill.level === 'project' ? t('skill.level.project') : t('skill.level.user')}</span>
+      <span className="dsi-row-main">
+        <span className="dsi-row-name">{skill.displayPath}/</span>
+        <span className="dsi-chip">{skill.level === 'project' ? t('skill.level.project') : t('skill.level.user')}</span>
       </span>
-      <span className="dpf-row-meta">
+      <span className="dsi-row-meta">
         {skill.exists ? `${t('skill.count', { count: skill.skillCount ?? 0 })}${expandable ? (expanded ? ' ▾' : ' ▸') : ''}` : t('skill.notCreated')}
       </span>
     </>
   )
-  if (!expandable) return <div className="dpf-dirrow">{row}</div>
+  if (!expandable) return <div className="dsi-dirrow">{row}</div>
   return (
     <div>
       <button
         type="button"
-        className="dpf-dirrow dpf-dirrow-btn"
+        className="dsi-dirrow dsi-dirrow-btn"
         aria-expanded={expanded}
         onClick={() => { setExpanded(value => !value) }}
       >{row}</button>
       {expanded && (
-        <div className="dpf-skill-list">
+        <div className="dsi-skill-list">
           {(skill.skills ?? []).map(entry => (
             <button
               key={entry.path}
               type="button"
-              className="dpf-skill-pill dpf-skill-pill-btn"
+              className="dsi-skill-pill dsi-skill-pill-btn"
               title={t('skill.open', { path: `${skill.displayPath}/${entry.path}` })}
               onClick={() => { onOpenSkill(skill.displayPath, entry) }}
             >/{entry.name}</button>
@@ -615,26 +615,26 @@ function SkillFileEditor(props: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-      <div className="dpf-editor-head">
-        <button type="button" className="dpf-btn" onClick={requestBack}>{t('editor.back')}</button>
-        <span className="dpf-editor-name">
+      <div className="dsi-editor-head">
+        <button type="button" className="dsi-btn" onClick={requestBack}>{t('editor.back')}</button>
+        <span className="dsi-editor-name">
           /{target.name}
-          {dirty ? <span className="dpf-dirty" title={t('editor.dirty')}>●</span> : null}
+          {dirty ? <span className="dsi-dirty" title={t('editor.dirty')}>●</span> : null}
         </span>
       </div>
-      <div className="dpf-editor-meta">
+      <div className="dsi-editor-meta">
         {content === undefined ? t('editor.loading') : `${target.root}/${target.path} · ${meta}`}
       </div>
       {confirmDiscard && (
-        <div className="dpf-guard">
+        <div className="dsi-guard">
           <span>{t('guard.unsaved')}</span>
-          <button type="button" className="dpf-btn dpf-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>{t('guard.saveBack')}</button>
-          <button type="button" className="dpf-btn dpf-btn-danger" onClick={onBack}>{t('guard.discard')}</button>
-          <button type="button" className="dpf-btn" onClick={() => { setConfirmDiscard(false) }}>{t('guard.keepEditing')}</button>
+          <button type="button" className="dsi-btn dsi-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>{t('guard.saveBack')}</button>
+          <button type="button" className="dsi-btn dsi-btn-danger" onClick={onBack}>{t('guard.discard')}</button>
+          <button type="button" className="dsi-btn" onClick={() => { setConfirmDiscard(false) }}>{t('guard.keepEditing')}</button>
         </div>
       )}
       <textarea
-        className="dpf-editor"
+        className="dsi-editor"
         value={content ?? ''}
         disabled={content === undefined || busy}
         spellCheck={false}
@@ -646,9 +646,9 @@ function SkillFileEditor(props: {
           }
         }}
       />
-      <div className="dpf-toolbar">
-        <button type="button" className="dpf-btn dpf-btn-primary" disabled={!dirty || busy} onClick={save}>{t('editor.save')}</button>
-        {status === undefined ? null : <span className={status.error ? 'dpf-status dpf-status-error' : 'dpf-status'}>{status.text}</span>}
+      <div className="dsi-toolbar">
+        <button type="button" className="dsi-btn dsi-btn-primary" disabled={!dirty || busy} onClick={save}>{t('editor.save')}</button>
+        {status === undefined ? null : <span className={status.error ? 'dsi-status dsi-status-error' : 'dsi-status'}>{status.text}</span>}
       </div>
     </div>
   )

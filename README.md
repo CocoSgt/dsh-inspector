@@ -1,4 +1,4 @@
-# dsh-context-inspector
+# dsh-inspector
 
 [简体中文](README.zh-CN.md) | English
 
@@ -117,9 +117,9 @@ installs need no build step.
 
 ```sh
 # from npm
-dsh plugin --profile web add dsh-context-inspector
+dsh plugin --profile web add dsh-inspector
 # or GitHub
-dsh plugin --profile web add github:CocoSgt/dsh-context-inspector
+dsh plugin --profile web add github:CocoSgt/dsh-inspector
 ```
 
 > Note: a self-built profile's `~/.dsh/profiles/<name>/package.json` must list
@@ -131,7 +131,7 @@ Restart `dsh web` (or your web launch command) after installing.
 Uninstall:
 
 ```sh
-dsh plugin --profile web remove dsh-context-inspector
+dsh plugin --profile web remove dsh-inspector
 ```
 
 ## Usage
@@ -171,7 +171,7 @@ src/
     descriptors.ts Hand-written strict call descriptors (zod)
     panel.tsx      Instruction-chain panel, editors, and header toggle
     store.ts       Panel open/close and edit-target state
-    styles.ts      Injected CSS (dpf- prefix, --dsw-alias-* design tokens)
+    styles.ts      Injected CSS (dsi- prefix, --dsw-alias-* design tokens)
     types.ts       Minimal client-side service type surface (incl. locale)
 ```
 

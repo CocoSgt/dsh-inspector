@@ -1,4 +1,4 @@
-# dsh-context-inspector(约束文件面板)
+# dsh-inspector(约束文件面板)
 
 简体中文 | [English](README.md)
 
@@ -84,9 +84,9 @@ GEMINI.md、.cursorrules 等其它代理工具的文件 dsh 不读取,同样不�
 
 ```sh
 # 从 npm
-dsh plugin --profile web add dsh-context-inspector
+dsh plugin --profile web add dsh-inspector
 # 或 GitHub
-dsh plugin --profile web add github:CocoSgt/dsh-context-inspector
+dsh plugin --profile web add github:CocoSgt/dsh-inspector
 ```
 
 > 注意:自建 profile 的 `~/.dsh/profiles/<name>/package.json` 里
@@ -98,7 +98,7 @@ dsh plugin --profile web add github:CocoSgt/dsh-context-inspector
 卸载:
 
 ```sh
-dsh plugin --profile web remove dsh-context-inspector
+dsh plugin --profile web remove dsh-inspector
 ```
 
 ## 使用
@@ -131,7 +131,7 @@ src/
     descriptors.ts 手写 strict 调用描述符(zod)
     panel.tsx      指引链面板、编辑器与头部开关组件
     store.ts       面板开/关与编辑目标状态
-    styles.ts      注入式 CSS(dpf- 前缀,--dsw-alias-* 设计令牌)
+    styles.ts      注入式 CSS(dsi- 前缀,--dsw-alias-* 设计令牌)
     types.ts       客户端最小服务类型面(含 locale)
 ```
 
