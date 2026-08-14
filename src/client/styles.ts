@@ -82,6 +82,22 @@ const CSS = `
   font: inherit;
 }
 .dpf-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.dpf-group { margin-top: 10px; }
+.dpf-group-title {
+  margin: 6px 2px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dpf-dirrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 2px 0;
+}
+.dpf-dirrow .dpf-row-name { font-weight: 500; }
 .dpf-row-name {
   font-weight: 600;
   font-family: var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);

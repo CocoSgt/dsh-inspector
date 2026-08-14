@@ -34,10 +34,13 @@ const contentParameter: ParameterDescriptor = {
 }
 
 const scopedFileMeta = z.object({
-  name: z.string(),
+  path: z.string(),
+  group: z.enum(['instructions', 'hooks', 'skills', 'env', 'sessions']),
+  kind: z.enum(['file', 'dir']),
   purpose: z.string(),
   exists: z.boolean(),
   size: z.number(),
+  entries: z.number().optional(),
   mtimeIso: z.string(),
 })
 

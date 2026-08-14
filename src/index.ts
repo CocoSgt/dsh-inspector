@@ -5,27 +5,31 @@
  * 不需要生成式 TYPERT 清单,方法上的 @Remote() 装饰器与构造时绑定的
  * 服务键 'projectFiles' 即构成 wire 端点 projectFiles/<method>。
  *
- * 路径安全:所有方法只接受「工作区根目录 + 白名单文件名」二元组。
- * 文件名必须命中 SCOPED_FILE_NAMES(白名单内文件名均不含路径分隔符,
- * 天然杜绝目录穿越);根目录必须是已存在的绝对路径目录,最终路径还会
- * 再做一次 resolve 后的前缀校验。
+ * 路径安全:所有方法只接受「工作区根目录 + 白名单相对路径」二元组。
+ * 相对路径必须命中 SCOPED_FILE_PATHS(白名单内均为固定字面量,不含 `..`
+ * 与绝对路径,天然杜绝目录穿越);根目录必须是已存在的绝对路径目录,
+ * 最终路径还会再做一次 resolve 后的前缀校验。白名单条目分 file/dir 两种
+ * 形态:文件可读/写/删,目录(.dsh/skills、.agents/skills、.sessions)只在
+ * list 里展示存在性与条目数,不接受内容读写。
  *
  * 重要:Gateway 通过 Function.prototype.toString 读取方法参数名作为
  * wire 字段名,因此本文件的公开方法必须保持「简单标识符参数」形态
  * (不解构、无默认值、无剩余参数),且构建产物不得压缩改写参数名。
  */
 
-import { statSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs'
+import { statSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from 'node:fs'
 import { isAbsolute, resolve, sep } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
-  SCOPED_FILE_NAMES,
+  SCOPED_FILE_BY_PATH,
+  SCOPED_FILE_PATHS,
   SCOPED_FILE_SPECS,
   type ListResult,
   type ReadResult,
   type RemoveResult,
   type ScopedFileMeta,
+  type ScopedFileSpec,
   type WriteResult,
 } from './scoped-files.js'
 
@@ -37,7 +41,7 @@ export type {
   ScopedFileSpec,
   WriteResult,
 } from './scoped-files.js'
-export { SCOPED_FILE_NAMES, SCOPED_FILE_SPECS } from './scoped-files.js'
+export { SCOPED_FILE_PATHS, SCOPED_FILE_SPECS } from './scoped-files.js'
 
 /** 校验并解析根目录:必须是存在的绝对路径目录。 */
 function checkRoot(root: string): string {
@@ -57,15 +61,25 @@ function checkRoot(root: string): string {
   return resolve(root)
 }
 
-/** 校验文件名在白名单内,并返回根目录下的完整路径。 */
+/** 校验相对路径在白名单内,并返回根目录下的完整路径。 */
 function checkTarget(root: string, name: string): string {
-  if (typeof name !== 'string' || !SCOPED_FILE_NAMES.has(name)) {
-    throw new Error(`projectFiles: 不支持的作用域文件名: ${JSON.stringify(name)}`)
+  if (typeof name !== 'string' || !SCOPED_FILE_PATHS.has(name)) {
+    throw new Error(`projectFiles: 不支持的项目文件路径: ${JSON.stringify(name)}`)
   }
   const target = resolve(root, name)
-  // 白名单文件名不含分隔符,这里的前缀校验是纵深防御。
-  if (target !== root + sep + name) {
+  // 白名单路径均为固定字面量(不含 ..),这里的前缀校验是纵深防御。
+  if (!target.startsWith(root + sep)) {
     throw new Error('projectFiles: 解析后的路径越出了工作区根目录')
+  }
+  return target
+}
+
+/** 校验目标是一个可读写的白名单**文件**(目录条目拒绝内容操作)。 */
+function checkFileTarget(root: string, name: string): string {
+  const target = checkTarget(root, name)
+  const spec = SCOPED_FILE_BY_PATH.get(name)
+  if (spec?.kind === 'dir') {
+    throw new Error(`projectFiles: 该条目是目录,不支持内容读写: ${name}`)
   }
   return target
 }
@@ -163,7 +177,8 @@ const TYPERT_MANIFEST = {
 } as const
 
 /**
- * projectFiles 网关服务:作用域指引文件的列出/读取/写入/删除。
+ * projectFiles 网关服务:dsh 原生项目文件(指引/Hooks/技能目录/.env/.sessions)
+ * 的列出/读取/写入/删除。
  * @param ctx - 宿主 Cordis 上下文。
  */
 export class ProjectFilesGateway extends TypertRemoteService {
@@ -176,28 +191,41 @@ export class ProjectFilesGateway extends TypertRemoteService {
       (typertCtx as unknown as { typert: TypertRegistryLike }).typert.register(TYPERT_MANIFEST))
   }
 
-  /** 列出当前工作区全部候选作用域文件的状态。 */
+  /** 列出当前工作区全部 dsh 原生项目文件的状态(文件到字节/时间,目录到条目数)。 */
   @Remote
   list(root: string): ListResult {
     const resolvedRoot = checkRoot(root)
     const files: ScopedFileMeta[] = SCOPED_FILE_SPECS.map(spec => {
-      const stats = statOf(checkTarget(resolvedRoot, spec.name))
+      const target = resolve(resolvedRoot, spec.path)
+      const stats = statOf(target)
+      let entries: number | undefined
+      if (spec.kind === 'dir' && stats !== undefined) {
+        try {
+          entries = readdirSync(target).length
+        } catch {
+          entries = undefined
+        }
+      }
       return {
-        name: spec.name,
+        path: spec.path,
+        group: spec.group,
+        kind: spec.kind,
         purpose: spec.purpose,
         exists: stats !== undefined,
-        size: stats?.size ?? 0,
+        size: spec.kind === 'file' ? (stats?.size ?? 0) : 0,
+        // entries 仅在目录存在时给出(undefined 不能过 wire 的 JSON 校验)。
+        ...(entries !== undefined ? { entries } : {}),
         mtimeIso: stats?.mtimeIso ?? '',
       }
     })
     return { root: resolvedRoot, files }
   }
 
-  /** 读取一个作用域文件的全文与元信息。 */
+  /** 读取一个白名单文件的全文与元信息。 */
   @Remote
   read(root: string, name: string): ReadResult {
     const resolvedRoot = checkRoot(root)
-    const target = checkTarget(resolvedRoot, name)
+    const target = checkFileTarget(resolvedRoot, name)
     const stats = statOf(target)
     if (stats === undefined) throw new Error(`projectFiles: 文件不存在: ${name}`)
     return {
@@ -207,11 +235,11 @@ export class ProjectFilesGateway extends TypertRemoteService {
     }
   }
 
-  /** 写入(新建或覆盖)一个作用域文件,返回写入后的元信息。 */
+  /** 写入(新建或覆盖)一个白名单文件,返回写入后的元信息。 */
   @Remote
   write(root: string, name: string, content: string): WriteResult {
     const resolvedRoot = checkRoot(root)
-    const target = checkTarget(resolvedRoot, name)
+    const target = checkFileTarget(resolvedRoot, name)
     if (typeof content !== 'string') throw new Error('projectFiles: content 必须是字符串')
     writeFileSync(target, content, 'utf8')
     const stats = statOf(target)
@@ -219,11 +247,11 @@ export class ProjectFilesGateway extends TypertRemoteService {
     return { size: stats.size, mtimeIso: stats.mtimeIso }
   }
 
-  /** 删除一个作用域文件;文件本就不存在时 removed 为 false。命名为 removeFile:客户端命名空间服务的原型上已占用 remove。 */
+  /** 删除一个白名单文件;文件本就不存在时 removed 为 false。命名为 removeFile:客户端命名空间服务的原型上已占用 remove。 */
   @Remote
   removeFile(root: string, name: string): RemoveResult {
     const resolvedRoot = checkRoot(root)
-    const target = checkTarget(resolvedRoot, name)
+    const target = checkFileTarget(resolvedRoot, name)
     if (statOf(target) === undefined) return { removed: false }
     unlinkSync(target)
     return { removed: true }

@@ -7,8 +7,9 @@
  */
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
-import type {
-  ListResult, ReadResult, RemoveResult, ScopedFileMeta, WriteResult,
+import {
+  GROUP_LABELS, GROUP_ORDER, type ScopedFileGroup,
+  type ListResult, type ReadResult, type RemoveResult, type ScopedFileMeta, type WriteResult,
 } from '../scoped-files.js'
 import type { PanelStore } from './store.js'
 import type { ProjectFilesCalls, SessionsFace } from './types.js'
@@ -82,7 +83,7 @@ function PanelShell(props: { cwd: string | undefined; store: PanelStore; childre
   )
 }
 
-/** 单个候选文件行:名称、用途、修改时间与字节,缺失文件可新建。 */
+/** 单个候选文件行:路径、用途、修改时间与字节,缺失文件可新建。 */
 function FileRow(props: {
   meta: ScopedFileMeta
   busy: boolean
@@ -94,7 +95,7 @@ function FileRow(props: {
     <div className={meta.exists ? 'dpf-row' : 'dpf-row dpf-row-missing'} style={{ display: 'flex' }}>
       <button type="button" className="dpf-row" disabled={busy} onClick={meta.exists ? onOpen : onCreate}>
         <span className="dpf-row-main">
-          <span className="dpf-row-name">{meta.name}</span>
+          <span className="dpf-row-name">{meta.path}</span>
           <div className="dpf-row-purpose">{meta.purpose}</div>
         </span>
         <span className="dpf-row-meta">
@@ -108,6 +109,24 @@ function FileRow(props: {
             <button type="button" className="dpf-iconbtn" disabled={busy} onClick={onCreate}>新建</button>
           </span>
         )}
+    </div>
+  )
+}
+
+/** 目录条目行:只展示存在性与条目数,不支持内容读写。 */
+function DirRow(props: { meta: ScopedFileMeta }): ReactNode {
+  const { meta } = props
+  return (
+    <div className={meta.exists ? 'dpf-dirrow' : 'dpf-dirrow dpf-row-missing'}>
+      <span className="dpf-row-main">
+        <span className="dpf-row-name">{meta.path}/</span>
+        <div className="dpf-row-purpose">{meta.purpose}</div>
+      </span>
+      <span className="dpf-row-meta">
+        {meta.exists
+          ? (meta.entries !== undefined ? `${meta.entries} 项 · ${formatTime(meta.mtimeIso)}` : formatTime(meta.mtimeIso))
+          : '未创建'}
+      </span>
     </div>
   )
 }
@@ -227,7 +246,7 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
   if (cwd === undefined) {
     return (
       <PanelShell cwd={undefined} store={store}>
-        <div className="dpf-hint">当前没有打开的会话工作区。<br />打开一个位于项目目录中的会话后,这里会显示该项目的指引文件。</div>
+        <div className="dpf-hint">当前没有打开的会话工作区。<br />打开一个位于项目目录中的会话后,这里会显示该项目里 dsh 会读写的文件。</div>
       </PanelShell>
     )
   }
@@ -244,15 +263,26 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
     <PanelShell cwd={cwd} store={store}>
       {loading && files === undefined ? <div className="dpf-hint">加载中…</div> : null}
       {listError !== undefined ? <div className="dpf-status dpf-status-error">加载失败:{listError}</div> : null}
-      {files === undefined ? null : files.map(meta => (
-        <FileRow
-          key={meta.name}
-          meta={meta}
-          busy={loading}
-          onOpen={() => { store.select(meta.name) }}
-          onCreate={() => { store.select(meta.name) }}
-        />
-      ))}
+      {files === undefined ? null : GROUP_ORDER.map(group => {
+        const entries = files.filter(meta => meta.group === (group as ScopedFileGroup))
+        if (entries.length === 0) return null
+        return (
+          <section key={group} className="dpf-group">
+            <h3 className="dpf-group-title">{GROUP_LABELS[group]}</h3>
+            {entries.map(meta => meta.kind === 'dir'
+              ? <DirRow key={meta.path} meta={meta} />
+              : (
+                <FileRow
+                  key={meta.path}
+                  meta={meta}
+                  busy={loading}
+                  onOpen={() => { store.select(meta.path) }}
+                  onCreate={() => { store.select(meta.path) }}
+                />
+              ))}
+          </section>
+        )
+      })}
     </PanelShell>
   )
 }
@@ -266,7 +296,7 @@ export function ProjectFilesToggle(props: ToggleProps): ReactNode {
       type="button"
       className={open ? 'dpf-toggle dpf-toggle-active' : 'dpf-toggle'}
       aria-pressed={open}
-      title="查看/编辑当前项目的指引文件(CLAUDE.md、AGENTS.md 等)"
+      title="查看/编辑当前项目里 dsh 会读写的文件(AGENTS.md、hooks.json、.env 等)"
       onClick={() => { store.toggle() }}
     >
       <span aria-hidden="true">📄</span>
