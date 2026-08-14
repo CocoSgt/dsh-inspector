@@ -1,6 +1,9 @@
-# dsh-inspector(约束文件面板)
+# dsh-inspector
 
 简体中文 | [English](README.md)
+
+npm 包名:`dsh-inspector` · GitHub 仓库:
+[CocoSgt/dsh-inspector](https://github.com/CocoSgt/dsh-inspector)
 
 DeepSeek Harness(dsh)的第三方插件:在 Web 界面右侧打开一个「约束文件」面板,
 按 harness **真实的载入顺序**展示并管理当前会话的指引链——全局
@@ -82,10 +85,21 @@ GEMINI.md、.cursorrules 等其它代理工具的文件 dsh 不读取,同样不�
 
 ## 安装
 
+从 npm 安装:
+
 ```sh
-# 从 npm
 dsh plugin --profile web add dsh-inspector
-# 或 GitHub
+```
+
+三个 dsh 插件可以一条命令一起安装:
+
+```sh
+dsh plugin --profile web add dsh-skills dsh-attachments dsh-inspector
+```
+
+GitHub 回退方式:
+
+```sh
 dsh plugin --profile web add github:CocoSgt/dsh-inspector
 ```
 
@@ -93,13 +107,17 @@ dsh plugin --profile web add github:CocoSgt/dsh-inspector
 > `dsh.profile.bundles` 必须包含 `@deepseek-ai/dsh-base` 与
 > `@deepseek-ai/dsh-web-app`,否则启动会静默挂起。
 
-安装后重启 `dsh web`(或对应的 web 启动命令)即可。
+安装后重启 `dsh web`。卸载:`dsh plugin --profile web remove dsh-inspector`。
 
-卸载:
+## 同系列插件
 
-```sh
-dsh plugin --profile web remove dsh-inspector
-```
+- [dsh-skills](https://github.com/CocoSgt/dsh-skills)
+  ([npm](https://www.npmjs.com/package/dsh-skills))——技能中枢:把散落在
+  Claude Code 目录、项目目录与 `.skill` 包里的技能汇成全局库,「/」菜单即取
+  即用。
+- [dsh-attachments](https://github.com/CocoSgt/dsh-attachments)
+  ([npm](https://www.npmjs.com/package/dsh-attachments))——附件注入:把任何
+  文件带进会话成卡;模型用 `read_image` 按路径读图,非视觉模型也不受阻。
 
 ## 使用
 
@@ -109,6 +127,19 @@ dsh plugin --profile web remove dsh-inspector
    候选;删除需二次确认,未保存返回有脏态守卫。
 
 没有当前会话(或会话没有工作区目录)时,面板会提示打开一个项目会话。
+
+## 已知限制
+
+- 面板位置是 shell.overlay 里的固定右侧浮动栏,不是可拖拽的原生分栏;宽度
+  固定 `min(440px, 92vw)`。
+- 宿主端信任浏览器传来的会话 cwd(本地面板自用场景);cwd 必须是已存在的
+  绝对路径目录,但不校验它是否出现在 dsh 的 workspace 列表里。
+- 「生效中」以存在性 + harness 规则(去重/超限)推断,不读取会话事件流;
+  会话实际的字节预算截断(64KB 基线预算)不在面板中反映。
+- cwd 之下子目录的按需注入状态(哪些已被触碰注入)不展示,只有脚注说明。
+- 编辑器是纯文本框,无 Markdown 预览/语法高亮。
+- 面板不监听文件系统变化;从编辑视图返回会重新拉取,编辑期间外部改动不会
+  自动同步。
 
 ## 开发
 
@@ -139,19 +170,6 @@ src/
 `Function.prototype.toString` 读取),因此公开方法保持「简单标识符参数」形态,
 构建不得压缩改写参数名(本仓库构建未开压缩)。RPC 方法名是 `removeFile` 而非
 `remove`:客户端命名空间服务的原型上已占用 `remove`,重名会在挂载时被网关拒绝。
-
-## 已知限制
-
-- 面板位置是 shell.overlay 里的固定右侧浮动栏,不是可拖拽的原生分栏;宽度
-  固定 `min(440px, 92vw)`。
-- 宿主端信任浏览器传来的会话 cwd(本地面板自用场景);cwd 必须是已存在的
-  绝对路径目录,但不校验它是否出现在 dsh 的 workspace 列表里。
-- 「生效中」以存在性 + harness 规则(去重/超限)推断,不读取会话事件流;
-  会话实际的字节预算截断(64KB 基线预算)不在面板中反映。
-- cwd 之下子目录的按需注入状态(哪些已被触碰注入)不展示,只有脚注说明。
-- 编辑器是纯文本框,无 Markdown 预览/语法高亮。
-- 面板不监听文件系统变化;从编辑视图返回会重新拉取,编辑期间外部改动不会
-  自动同步。
 
 ## 许可
 

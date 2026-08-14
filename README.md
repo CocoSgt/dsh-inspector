@@ -2,6 +2,9 @@
 
 [简体中文](README.zh-CN.md) | English
 
+npm package: `dsh-inspector` · GitHub repository:
+[CocoSgt/dsh-inspector](https://github.com/CocoSgt/dsh-inspector)
+
 A third-party plugin for DeepSeek Harness (dsh): an "Instruction Files" panel on
 the right side of the Web UI that shows — and manages — the instruction chain
 actually in effect for the current session, in the harness's **real load
@@ -115,10 +118,21 @@ installs need no build step.
 
 ## Install
 
+Install from npm:
+
 ```sh
-# from npm
 dsh plugin --profile web add dsh-inspector
-# or GitHub
+```
+
+All three dsh plugins can be added in one command:
+
+```sh
+dsh plugin --profile web add dsh-skills dsh-attachments dsh-inspector
+```
+
+GitHub fallback:
+
+```sh
 dsh plugin --profile web add github:CocoSgt/dsh-inspector
 ```
 
@@ -126,13 +140,21 @@ dsh plugin --profile web add github:CocoSgt/dsh-inspector
 > `@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` in
 > `dsh.profile.bundles`, otherwise startup hangs silently.
 
-Restart `dsh web` (or your web launch command) after installing.
+Restart `dsh web` afterwards. Uninstall:
+`dsh plugin --profile web remove dsh-inspector`.
 
-Uninstall:
+## Companion plugins
 
-```sh
-dsh plugin --profile web remove dsh-inspector
-```
+The other two plugins from the same suite:
+
+- [dsh-skills](https://github.com/CocoSgt/dsh-skills)
+  ([npm](https://www.npmjs.com/package/dsh-skills)) — a skill hub: aggregate
+  skills scattered across Claude Code directories, projects, and `.skill`
+  packages into one global library, invocable from the "/" menu.
+- [dsh-attachments](https://github.com/CocoSgt/dsh-attachments)
+  ([npm](https://www.npmjs.com/package/dsh-attachments)) — bring any file
+  into the conversation as cards above the composer; the model reads images
+  by path via `read_image`, so even non-vision models are never blocked.
 
 ## Usage
 
@@ -146,6 +168,23 @@ dsh plugin --profile web remove dsh-inspector
 
 With no current session (or a session without a workspace directory), the
 panel prompts to open a project session.
+
+## Known limitations
+
+- The panel is a fixed floating right column in `shell.overlay`, not a
+  draggable native pane; the width is fixed at `min(440px, 92vw)`.
+- The host trusts the session cwd sent by the browser (a local-panel use
+  case); the cwd must be an existing absolute directory path, but it is not
+  checked against dsh's workspace list.
+- "In effect" is inferred from existence + harness rules (dedup/size cap);
+  the session's actual byte-budget truncation (64 KB baseline) is not
+  reflected in the panel.
+- The on-demand injection state of subdirectories below the cwd (which have
+  been touched and injected) is not shown; only the footnote explains it.
+- The editor is a plain textarea, with no Markdown preview or syntax
+  highlighting.
+- The panel does not watch the file system; returning from the edit view
+  re-fetches, but external changes during editing are not synced live.
 
 ## Development
 
@@ -182,23 +221,6 @@ parameter names (this repository's build does not minify). The RPC method is
 named `removeFile`, not `remove`: `remove` is already taken on the client
 namespace service's prototype, and a name clash would be rejected by the
 gateway at mount time.
-
-## Known limitations
-
-- The panel is a fixed floating right column in `shell.overlay`, not a
-  draggable native pane; the width is fixed at `min(440px, 92vw)`.
-- The host trusts the session cwd sent by the browser (a local-panel use
-  case); the cwd must be an existing absolute directory path, but it is not
-  checked against dsh's workspace list.
-- "In effect" is inferred from existence + harness rules (dedup/size cap);
-  the session's actual byte-budget truncation (64 KB baseline) is not
-  reflected in the panel.
-- The on-demand injection state of subdirectories below the cwd (which have
-  been touched and injected) is not shown; only the footnote explains it.
-- The editor is a plain textarea, with no Markdown preview or syntax
-  highlighting.
-- The panel does not watch the file system; returning from the edit view
-  re-fetches, but external changes during editing are not synced live.
 
 ## License
 
