@@ -40,6 +40,17 @@ export interface ToggleInjected {
 /** 开关按钮实际收到的 props(session 作用域标准位含 sessionId,未用)。 */
 export type ToggleProps = ToggleInjected & Record<string, unknown>
 
+/** 新建文件时预填的初始模板(保存才落盘,直接放弃则不产生文件)。 */
+const FILE_TEMPLATES: Readonly<Record<string, string>> = {
+  'AGENTS.md': '# AGENTS.md\n\n## 项目约定\n\n- \n',
+  'CLAUDE.md': '# CLAUDE.md\n\n## 项目约定\n\n- \n',
+  'AGENTS.local.md': '# AGENTS.local.md(本地覆盖层,建议加入 .gitignore)\n\n',
+  'CLAUDE.local.md': '# CLAUDE.local.md(本地覆盖层,建议加入 .gitignore)\n\n',
+  'hooks.json': '{\n  "hooks": {}\n}\n',
+  'codex-hooks.json': '{\n  "hooks": {}\n}\n',
+  '.env': '# dsh 启动时加载的环境变量\n',
+}
+
 /** 字节数的人类可读形式。 */
 function formatSize(size: number): string {
   if (size < 1024) return `${size} B`
@@ -68,14 +79,22 @@ function useCurrentCwd(sessions: SessionsFace): string | undefined {
   )
 }
 
-/** 面板外壳:标题、路径、关闭按钮与主体。 */
-function PanelShell(props: { cwd: string | undefined; store: PanelStore; children: ReactNode }): ReactNode {
-  const { cwd, store, children } = props
+/** 面板外壳:标题、路径、新建与关闭按钮、主体。 */
+function PanelShell(props: {
+  cwd: string | undefined
+  store: PanelStore
+  onNew?: () => void
+  children: ReactNode
+}): ReactNode {
+  const { cwd, store, onNew, children } = props
   return (
     <div className="dpf-panel" role="complementary" aria-label="项目文件">
       <div className="dpf-header">
         <span className="dpf-title">项目文件</span>
         <span className="dpf-path" title={cwd ?? ''}>{cwd ?? ''}</span>
+        {onNew === undefined ? null : (
+          <button type="button" className="dpf-iconbtn" onClick={onNew}>＋ 新建</button>
+        )}
         <button type="button" className="dpf-close" aria-label="关闭项目文件面板" onClick={() => { store.close() }}>✕</button>
       </div>
       <div className="dpf-body">{children}</div>
@@ -113,9 +132,16 @@ function DirRow(props: { meta: ScopedFileMeta }): ReactNode {
   )
 }
 
-/** 文件编辑视图:读取全文、编辑、保存、删除。 */
-function FileEditor(props: { api: ProjectFilesApi; root: string; name: string; onBack: () => void }): ReactNode {
-  const { api, root, name, onBack } = props
+/** 文件编辑视图:读取全文、编辑、保存、删除;传入 template 即为新建模式。 */
+function FileEditor(props: {
+  api: ProjectFilesApi
+  root: string
+  name: string
+  /** 新建模式:预填模板,保存才落盘。undefined 为编辑已存在文件。 */
+  template?: string
+  onBack: () => void
+}): ReactNode {
+  const { api, root, name, template, onBack } = props
   const [content, setContent] = useState<string | undefined>(undefined)
   const [meta, setMeta] = useState<string>('')
   const [status, setStatus] = useState<{ error: boolean; text: string } | undefined>(undefined)
@@ -124,8 +150,14 @@ function FileEditor(props: { api: ProjectFilesApi; root: string; name: string; o
 
   useEffect(() => {
     let cancelled = false
-    setBusy(true)
     setStatus(undefined)
+    if (template !== undefined) {
+      // 新建模式:不落盘,直接给模板;保存时才 write。
+      setContent(template)
+      setMeta('新建:保存后才会创建这个文件')
+      return () => { cancelled = true }
+    }
+    setBusy(true)
     api.read(root, name)
       .then(result => {
         if (cancelled) return
@@ -137,7 +169,7 @@ function FileEditor(props: { api: ProjectFilesApi; root: string; name: string; o
       })
       .finally(() => { if (!cancelled) setBusy(false) })
     return () => { cancelled = true }
-  }, [api, root, name])
+  }, [api, root, name, template])
 
   const save = (): void => {
     if (content === undefined) return
@@ -179,8 +211,10 @@ function FileEditor(props: { api: ProjectFilesApi; root: string; name: string; o
         onChange={event => { setContent(event.target.value) }}
       />
       <div className="dpf-toolbar">
-        <button type="button" className="dpf-btn dpf-btn-primary" disabled={content === undefined || busy} onClick={save}>保存</button>
-        {confirmDelete
+        <button type="button" className="dpf-btn dpf-btn-primary" disabled={content === undefined || busy} onClick={save}>
+          {template === undefined ? '保存' : '保存并创建'}
+        </button>
+        {template !== undefined ? null : confirmDelete
           ? (
             <>
               <button type="button" className="dpf-btn dpf-btn-danger" disabled={busy} onClick={remove}>确认删除</button>
@@ -204,6 +238,8 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
   const [files, setFiles] = useState<readonly ScopedFileMeta[] | undefined>(undefined)
   const [listError, setListError] = useState<string | undefined>(undefined)
   const [loading, setLoading] = useState(false)
+  const [showCreate, setShowCreate] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!state.open || cwd === undefined) {
@@ -221,7 +257,7 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
       })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [api, state.open, cwd])
+  }, [api, state.open, cwd, refreshKey])
 
   if (!state.open) return null
 
@@ -233,23 +269,79 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
     )
   }
 
+  const openCreate = (): void => { setShowCreate(true) }
+  const closeCreate = (): void => { setShowCreate(false) }
+  // 从编辑视图返回时重拉清单:保存/删除可能改变了存在性。
+  const back = (): void => { store.select(undefined); closeCreate(); setRefreshKey(n => n + 1) }
+
   if (state.selected !== undefined) {
+    const missing = files?.find(meta => meta.path === state.selected)?.exists === false
+      && FILE_TEMPLATES[state.selected] !== undefined
     return (
       <PanelShell cwd={cwd} store={store}>
-        <FileEditor api={api} root={cwd} name={state.selected} onBack={() => { store.select(undefined) }} />
+        <FileEditor
+          api={api}
+          root={cwd}
+          name={state.selected}
+          template={missing ? FILE_TEMPLATES[state.selected] : undefined}
+          onBack={back}
+        />
+      </PanelShell>
+    )
+  }
+
+  // 新建视图:列出现存条目之外、还能创建的白名单文件(带模板的文件条目)。
+  if (showCreate && files !== undefined) {
+    const creatable = files.filter(meta => meta.kind === 'file' && !meta.exists)
+    return (
+      <PanelShell cwd={cwd} store={store}>
+        <div className="dpf-create-head">
+          <span className="dpf-create-title">新建项目文件</span>
+          <button type="button" className="dpf-btn" onClick={closeCreate}>返回</button>
+        </div>
+        {creatable.length === 0
+          ? <div className="dpf-hint">白名单里的文件都已经在项目里了。</div>
+          : GROUP_ORDER.map(group => {
+            const entries = creatable.filter(meta => meta.group === (group as ScopedFileGroup))
+            if (entries.length === 0) return null
+            return (
+              <section key={group} className="dpf-group">
+                <h3 className="dpf-group-title">{GROUP_LABELS[group]}</h3>
+                {entries.map(meta => (
+                  <button
+                    key={meta.path}
+                    type="button"
+                    className="dpf-row"
+                    onClick={() => { store.select(meta.path) }}
+                  >
+                    <span className="dpf-row-main">
+                      <span className="dpf-row-name">{meta.path}</span>
+                      <div className="dpf-row-purpose">{meta.purpose}</div>
+                    </span>
+                    <span className="dpf-row-meta">创建</span>
+                  </button>
+                ))}
+              </section>
+            )
+          })}
       </PanelShell>
     )
   }
 
   return (
-    <PanelShell cwd={cwd} store={store}>
+    <PanelShell cwd={cwd} store={store} onNew={openCreate}>
       {loading && files === undefined ? <div className="dpf-hint">加载中…</div> : null}
       {listError !== undefined ? <div className="dpf-status dpf-status-error">加载失败:{listError}</div> : null}
       {files === undefined ? null : (() => {
         // 只展示项目里实际存在的条目;不存在的压根不占位置。
         const existing = files.filter(meta => meta.exists)
         if (existing.length === 0) {
-          return <div className="dpf-hint">这个项目目录里暂时没有 dsh 的项目文件。</div>
+          return (
+            <div className="dpf-hint">
+              这个项目目录里暂时没有 dsh 的项目文件。<br />
+              <button type="button" className="dpf-iconbtn" onClick={openCreate}>＋ 新建一个</button>
+            </div>
+          )
         }
         return GROUP_ORDER.map(group => {
           const entries = existing.filter(meta => meta.group === (group as ScopedFileGroup))

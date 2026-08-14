@@ -83,6 +83,15 @@ const CSS = `
 }
 .dpf-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .dpf-group { margin-top: 10px; }
+.dpf-create-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.dpf-create-title { font-weight: 600; }
+.dpf-hint .dpf-iconbtn { margin-top: 8px; }
 .dpf-group-title {
   margin: 6px 2px 2px;
   font-size: 11px;
