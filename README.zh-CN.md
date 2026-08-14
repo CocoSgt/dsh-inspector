@@ -83,9 +83,9 @@ GEMINI.md、.cursorrules 等其它代理工具的文件 dsh 不读取,同样不�
 ## 安装
 
 ```sh
-# 本地路径
-dsh plugin --profile web add /path/to/dsh-context-inspector
-# 或 GitHub(私有仓库需先 gh auth login)
+# 从 npm
+dsh plugin --profile web add dsh-context-inspector
+# 或 GitHub
 dsh plugin --profile web add github:CocoSgt/dsh-context-inspector
 ```
 

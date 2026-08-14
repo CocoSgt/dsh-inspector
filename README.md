@@ -116,9 +116,9 @@ installs need no build step.
 ## Install
 
 ```sh
-# local path
-dsh plugin --profile web add /path/to/dsh-context-inspector
-# or GitHub (private repos need gh auth login first)
+# from npm
+dsh plugin --profile web add dsh-context-inspector
+# or GitHub
 dsh plugin --profile web add github:CocoSgt/dsh-context-inspector
 ```
 
