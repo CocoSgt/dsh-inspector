@@ -1,0 +1,5 @@
+# dsh-project-files bundle patch:把宿主端的 projectFiles 网关服务
+# (以及本包声明的 web 客户端插件)插入 profile 组合。
+- insert:
+    - id: project-files
+      name: 'dsh-project-files'
