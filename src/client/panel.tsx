@@ -83,49 +83,31 @@ function PanelShell(props: { cwd: string | undefined; store: PanelStore; childre
   )
 }
 
-/** 单个候选文件行:路径、用途、修改时间与字节,缺失文件可新建。 */
-function FileRow(props: {
-  meta: ScopedFileMeta
-  busy: boolean
-  onOpen: () => void
-  onCreate: () => void
-}): ReactNode {
-  const { meta, busy, onOpen, onCreate } = props
+/** 单个已存在文件行:路径、用途、修改时间与字节,点击进入编辑。 */
+function FileRow(props: { meta: ScopedFileMeta; busy: boolean; onOpen: () => void }): ReactNode {
+  const { meta, busy, onOpen } = props
   return (
-    <div className={meta.exists ? 'dpf-row' : 'dpf-row dpf-row-missing'} style={{ display: 'flex' }}>
-      <button type="button" className="dpf-row" disabled={busy} onClick={meta.exists ? onOpen : onCreate}>
-        <span className="dpf-row-main">
-          <span className="dpf-row-name">{meta.path}</span>
-          <div className="dpf-row-purpose">{meta.purpose}</div>
-        </span>
-        <span className="dpf-row-meta">
-          {meta.exists ? `${formatTime(meta.mtimeIso)} · ${formatSize(meta.size)}` : '未创建'}
-        </span>
-      </button>
-      {meta.exists
-        ? null
-        : (
-          <span className="dpf-row-actions">
-            <button type="button" className="dpf-iconbtn" disabled={busy} onClick={onCreate}>新建</button>
-          </span>
-        )}
-    </div>
+    <button type="button" className="dpf-row" disabled={busy} onClick={onOpen}>
+      <span className="dpf-row-main">
+        <span className="dpf-row-name">{meta.path}</span>
+        <div className="dpf-row-purpose">{meta.purpose}</div>
+      </span>
+      <span className="dpf-row-meta">{`${formatTime(meta.mtimeIso)} · ${formatSize(meta.size)}`}</span>
+    </button>
   )
 }
 
-/** 目录条目行:只展示存在性与条目数,不支持内容读写。 */
+/** 目录条目行:只展示条目数,不支持内容读写。 */
 function DirRow(props: { meta: ScopedFileMeta }): ReactNode {
   const { meta } = props
   return (
-    <div className={meta.exists ? 'dpf-dirrow' : 'dpf-dirrow dpf-row-missing'}>
+    <div className="dpf-dirrow">
       <span className="dpf-row-main">
         <span className="dpf-row-name">{meta.path}/</span>
         <div className="dpf-row-purpose">{meta.purpose}</div>
       </span>
       <span className="dpf-row-meta">
-        {meta.exists
-          ? (meta.entries !== undefined ? `${meta.entries} 项 · ${formatTime(meta.mtimeIso)}` : formatTime(meta.mtimeIso))
-          : '未创建'}
+        {meta.entries !== undefined ? `${meta.entries} 项 · ${formatTime(meta.mtimeIso)}` : formatTime(meta.mtimeIso)}
       </span>
     </div>
   )
@@ -263,26 +245,32 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
     <PanelShell cwd={cwd} store={store}>
       {loading && files === undefined ? <div className="dpf-hint">加载中…</div> : null}
       {listError !== undefined ? <div className="dpf-status dpf-status-error">加载失败:{listError}</div> : null}
-      {files === undefined ? null : GROUP_ORDER.map(group => {
-        const entries = files.filter(meta => meta.group === (group as ScopedFileGroup))
-        if (entries.length === 0) return null
-        return (
-          <section key={group} className="dpf-group">
-            <h3 className="dpf-group-title">{GROUP_LABELS[group]}</h3>
-            {entries.map(meta => meta.kind === 'dir'
-              ? <DirRow key={meta.path} meta={meta} />
-              : (
-                <FileRow
-                  key={meta.path}
-                  meta={meta}
-                  busy={loading}
-                  onOpen={() => { store.select(meta.path) }}
-                  onCreate={() => { store.select(meta.path) }}
-                />
-              ))}
-          </section>
-        )
-      })}
+      {files === undefined ? null : (() => {
+        // 只展示项目里实际存在的条目;不存在的压根不占位置。
+        const existing = files.filter(meta => meta.exists)
+        if (existing.length === 0) {
+          return <div className="dpf-hint">这个项目目录里暂时没有 dsh 的项目文件。</div>
+        }
+        return GROUP_ORDER.map(group => {
+          const entries = existing.filter(meta => meta.group === (group as ScopedFileGroup))
+          if (entries.length === 0) return null
+          return (
+            <section key={group} className="dpf-group">
+              <h3 className="dpf-group-title">{GROUP_LABELS[group]}</h3>
+              {entries.map(meta => meta.kind === 'dir'
+                ? <DirRow key={meta.path} meta={meta} />
+                : (
+                  <FileRow
+                    key={meta.path}
+                    meta={meta}
+                    busy={loading}
+                    onOpen={() => { store.select(meta.path) }}
+                  />
+                ))}
+            </section>
+          )
+        })
+      })()}
     </PanelShell>
   )
 }

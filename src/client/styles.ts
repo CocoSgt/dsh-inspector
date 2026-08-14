@@ -102,7 +102,6 @@ const CSS = `
   font-weight: 600;
   font-family: var(--ds-font-family-code, ui-monospace, SFMono-Regular, Menlo, monospace);
 }
-.dpf-row-missing .dpf-row-name { color: var(--dsw-alias-label-dimmed); }
 .dpf-row-main {
   flex: 1;
   min-width: 0;
