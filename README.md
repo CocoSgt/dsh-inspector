@@ -37,7 +37,7 @@ DeepSeek Harness(dsh)的第三方插件:在 Web 界面右侧打开一个「项�
 
 - **宿主端**(`lib/index.js`,本包主入口):`ProjectFilesGateway` 继承
   `TypertRemoteService`(来自 `@deepseek-ai/dsh-typert-protocol`),以 SRC 模式
-  自动被 Typert Gateway 发现,暴露 `projectFiles/list|read|write|remove` 四个
+  自动被 Typert Gateway 发现,暴露 `projectFiles/list|read|write|removeFile` 四个
   RPC 端点,直接用 `node:fs` 读写白名单文件。
 - **浏览器端**(`lib/client.js`,`exports["./client"]`):闭包工厂 bundle
   (`window.__ModuleLoader__.load` 形态)。启动时把手写的 strict zod 调用描述符
@@ -54,6 +54,21 @@ dsh plugin --profile web add /path/to/dsh-project-files
 # 或 GitHub(私有仓库需先 gh auth login)
 dsh plugin --profile web add github:CocoSgt/dsh-project-files
 ```
+
+> 注意:自建 profile 的 `~/.dsh/profiles/<name>/package.json` 里
+> `dsh.profile.bundles` 必须包含 `@deepseek-ai/dsh-base` 与
+> `@deepseek-ai/dsh-web-app`,否则启动会静默挂起。
+
+## 已知限制
+
+- 白名单固定为 5 个指引文件名(AGENTS.md、CLAUDE.md、GEMINI.md、
+  COPILOT-INSTRUCTIONS.md、.cursorrules),暂不可配置。
+- 面板读取的目录是「当前会话的 cwd」;若会话尚未打开任何目录,面板会提示
+  无 cwd,不提供手选目录。
+- 删除走两步确认,但没有撤销;文件删了就是删了。
+- RPC 方法名是 `removeFile` 而非 `remove`:客户端命名空间服务的原型上已占用
+  `remove`,重名会在挂载时被网关拒绝。
+
 
 安装后重启 `dsh web`(或对应的 web 启动命令)即可。
 

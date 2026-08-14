@@ -95,10 +95,10 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       result: resultCodec('dsh-project-files#WriteResult', writeResult),
     },
     {
-      id: 'dsh-project-files#projectFiles/remove',
+      id: 'dsh-project-files#projectFiles/removeFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
-      method: 'remove',
+      method: 'removeFile',
       invocation: { kind: 'direct' },
       parameters: [rootParameter, nameParameter],
       result: resultCodec('dsh-project-files#RemoveResult', removeResult),

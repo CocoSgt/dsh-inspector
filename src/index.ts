@@ -133,9 +133,9 @@ export class ProjectFilesGateway extends TypertRemoteService {
     return { size: stats.size, mtimeIso: stats.mtimeIso }
   }
 
-  /** 删除一个作用域文件;文件本就不存在时 removed 为 false。 */
+  /** 删除一个作用域文件;文件本就不存在时 removed 为 false。命名为 removeFile:客户端命名空间服务的原型上已占用 remove。 */
   @Remote
-  remove(root: string, name: string): RemoveResult {
+  removeFile(root: string, name: string): RemoveResult {
     const resolvedRoot = checkRoot(root)
     const target = checkTarget(resolvedRoot, name)
     if (statOf(target) === undefined) return { removed: false }

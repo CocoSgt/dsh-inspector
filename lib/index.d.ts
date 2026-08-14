@@ -32,7 +32,7 @@ export declare class ProjectFilesGateway extends TypertRemoteService {
     read(root: string, name: string): ReadResult;
     /** 写入(新建或覆盖)一个作用域文件,返回写入后的元信息。 */
     write(root: string, name: string, content: string): WriteResult;
-    /** 删除一个作用域文件;文件本就不存在时 removed 为 false。 */
-    remove(root: string, name: string): RemoveResult;
+    /** 删除一个作用域文件;文件本就不存在时 removed 为 false。命名为 removeFile:客户端命名空间服务的原型上已占用 remove。 */
+    removeFile(root: string, name: string): RemoveResult;
 }
 export default ProjectFilesGateway;

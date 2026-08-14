@@ -34,7 +34,7 @@ function createApi(ctx: ClientContext): ProjectFilesApi {
     read: async (root: string, name: string): Promise<ReadResult> => unwrap(await calls.read(root, name)),
     write: async (root: string, name: string, content: string): Promise<WriteResult> =>
       unwrap(await calls.write(root, name, content)),
-    remove: async (root: string, name: string): Promise<RemoveResult> => unwrap(await calls.remove(root, name)),
+    remove: async (root: string, name: string): Promise<RemoveResult> => unwrap(await calls.removeFile(root, name)),
   }
 }
 
@@ -52,19 +52,26 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ctx.effect(() => () => { void disposeRemote() }, 'dsh-project-files: 远端描述符挂载')
 
   const store = createPanelStore()
-  const api = createApi(ctx)
 
-  ctx.slots.inject('shell.overlay', () => ctx.slots.register({
-    name: 'shell.overlay',
-    id: 'dsh-project-files',
-    order: 20,
-    inject: (): Record<string, unknown> => ({ api, sessions: ctx.sessions, store }),
-  }, ProjectFilesPanel))
+  // 远端命名空间服务 remote.projectFiles 由上面的 $mount 创建,不能写进静态
+  // inject(那会在 apply 之前等待一个尚不存在的服务,永远挂起)。改用动态
+  // inject:$mount 完成后命名空间已存在,回调立即触发,且回调上下文允许
+  // 访问 ctx.remote.projectFiles。
+  ctx.inject(['remote', 'remote.projectFiles'], (namespaceCtx: ClientContext): void => {
+    const api = createApi(namespaceCtx)
 
-  ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
-    name: 'conversation.session.header.utilities',
-    id: 'dsh-project-files',
-    order: 30,
-    inject: (): Record<string, unknown> => ({ store }),
-  }, ProjectFilesToggle))
+    ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+      name: 'shell.overlay',
+      id: 'dsh-project-files',
+      order: 20,
+      inject: (): Record<string, unknown> => ({ api, sessions: ctx.sessions, store }),
+    }, ProjectFilesPanel))
+
+    ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
+      name: 'conversation.session.header.utilities',
+      id: 'dsh-project-files',
+      order: 30,
+      inject: (): Record<string, unknown> => ({ store }),
+    }, ProjectFilesToggle))
+  })
 }

@@ -64,7 +64,7 @@ export interface WriteResult {
   readonly mtimeIso: string
 }
 
-/** projectFiles/remove 的返回。 */
+/** projectFiles/removeFile 的返回。 */
 export interface RemoveResult {
   /** 是否删除了已存在的文件。 */
   readonly removed: boolean

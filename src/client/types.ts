@@ -49,7 +49,7 @@ export interface ProjectFilesCalls {
   list(root: string): Promise<RpcResult<ListResult>>
   read(root: string, name: string): Promise<RpcResult<ReadResult>>
   write(root: string, name: string, content: string): Promise<RpcResult<WriteResult>>
-  remove(root: string, name: string): Promise<RpcResult<RemoveResult>>
+  removeFile(root: string, name: string): Promise<RpcResult<RemoveResult>>
 }
 
 /** 会话摘要中本插件关心的字段。 */
@@ -77,9 +77,10 @@ export interface SlotsFace {
   register(options: Record<string, unknown>, component: unknown): unknown
 }
 
-/** 浏览器端 cordis 上下文的最小面(effect 为 cordis 标准能力)。 */
+/** 浏览器端 cordis 上下文的最小面(effect / inject 为 cordis 标准能力)。 */
 export interface ClientContext {
   effect(setup: () => (() => void) | void, name?: string): unknown
+  inject(deps: readonly string[], callback: (ctx: ClientContext) => void): unknown
   readonly remote: RemoteFace
   readonly sessions: SessionsFace
   readonly slots: SlotsFace
