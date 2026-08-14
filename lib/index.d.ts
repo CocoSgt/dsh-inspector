@@ -24,7 +24,7 @@ export { SCOPED_FILE_NAMES, SCOPED_FILE_SPECS } from './scoped-files.js';
  * @param ctx - 宿主 Cordis 上下文。
  */
 export declare class ProjectFilesGateway extends TypertRemoteService {
-    /** 无额外服务依赖;父类构造完成 'projectFiles' 键注册与 Gateway 绑定。 */
+    /** 注册 'projectFiles' 服务键;typert registry 就绪后补登记弱清单。 */
     constructor(ctx: Context);
     /** 列出当前工作区全部候选作用域文件的状态。 */
     list(root: string): ListResult;

@@ -80,14 +80,100 @@ function statOf(target: string): { size: number; mtimeIso: string } | undefined 
   }
 }
 
+/** 弱(src-json)调用描述符:参数与结果都按 JSON 原样过wire,不做 zod 校验。 */
+interface WeakInvocation {
+  readonly id: string
+  readonly service: 'projectFiles'
+  readonly namespace: 'projectFiles'
+  readonly method: string
+  readonly invocation: { readonly kind: 'direct' }
+  readonly parameters: ReadonlyArray<{
+    readonly name: string
+    readonly wire: string
+    readonly source: 'json'
+    readonly codec: { readonly mode: 'src-json' }
+  }>
+  readonly result: { readonly mode: 'src-json' }
+}
+
+/** ctx.typert 注册面(宿主 dsh-typert-registry 提供;本包不依赖其类型)。 */
+interface TypertRegistryLike {
+  register(contribution: unknown): unknown
+}
+
+function jsonParameter(name: string): WeakInvocation['parameters'][number] {
+  return { name, wire: name, source: 'json', codec: { mode: 'src-json' } }
+}
+
+/**
+ * 宿主端弱类型 TYPERT 清单:把 projectFiles/* 端点作为 strict 定义注册进
+ * 宿主的 typert registry。
+ *
+ * 为什么必须走注册而不能只靠 @Remote/SRC 发现:第三方插件解析到自己
+ * node_modules 里的 @deepseek-ai/dsh-typert-protocol 副本,装饰器标记写进
+ * 那份副本的模块私有 WeakMap;宿主 Gateway 用的是宿主侧另一份副本,
+ * remoteMethods 读不到任何标记,SRC 发现会得到 0 个端点(浏览器里
+ * projectFiles/* 全部 404)。清单是纯数据,跨副本可见,Gateway 的
+ * strict 定义路径直接命中。官方 registry 明确保留手动
+ * ctx.typert.register() 给无 ./typert 构件的贡献。
+ */
+const TYPERT_MANIFEST = {
+  package: 'dsh-project-files',
+  face: 'host',
+  schemas: [],
+  model: { services: [], events: [], objects: [] },
+  invocations: [
+    {
+      id: 'dsh-project-files#projectFiles/list',
+      service: 'projectFiles',
+      namespace: 'projectFiles',
+      method: 'list',
+      invocation: { kind: 'direct' },
+      parameters: [jsonParameter('root')],
+      result: { mode: 'src-json' },
+    },
+    {
+      id: 'dsh-project-files#projectFiles/read',
+      service: 'projectFiles',
+      namespace: 'projectFiles',
+      method: 'read',
+      invocation: { kind: 'direct' },
+      parameters: [jsonParameter('root'), jsonParameter('name')],
+      result: { mode: 'src-json' },
+    },
+    {
+      id: 'dsh-project-files#projectFiles/write',
+      service: 'projectFiles',
+      namespace: 'projectFiles',
+      method: 'write',
+      invocation: { kind: 'direct' },
+      parameters: [jsonParameter('root'), jsonParameter('name'), jsonParameter('content')],
+      result: { mode: 'src-json' },
+    },
+    {
+      id: 'dsh-project-files#projectFiles/removeFile',
+      service: 'projectFiles',
+      namespace: 'projectFiles',
+      method: 'removeFile',
+      invocation: { kind: 'direct' },
+      parameters: [jsonParameter('root'), jsonParameter('name')],
+      result: { mode: 'src-json' },
+    },
+  ] satisfies WeakInvocation[],
+} as const
+
 /**
  * projectFiles 网关服务:作用域指引文件的列出/读取/写入/删除。
  * @param ctx - 宿主 Cordis 上下文。
  */
 export class ProjectFilesGateway extends TypertRemoteService {
-  /** 无额外服务依赖;父类构造完成 'projectFiles' 键注册与 Gateway 绑定。 */
+  /** 注册 'projectFiles' 服务键;typert registry 就绪后补登记弱清单。 */
   constructor(ctx: Context) {
     super(ctx, 'projectFiles')
+    // 动态 inject:typert 不在场的组合(如 ACP 示例配置)里静默跳过,
+    // 不阻塞 boot;register 返回的 disposer 作为回调返回值参与卸载。
+    ctx.inject(['typert'], (typertCtx: Context) =>
+      (typertCtx as unknown as { typert: TypertRegistryLike }).typert.register(TYPERT_MANIFEST))
   }
 
   /** 列出当前工作区全部候选作用域文件的状态。 */
