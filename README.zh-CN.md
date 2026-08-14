@@ -171,6 +171,14 @@ src/
 构建不得压缩改写参数名(本仓库构建未开压缩)。RPC 方法名是 `removeFile` 而非
 `remove`:客户端命名空间服务的原型上已占用 `remove`,重名会在挂载时被网关拒绝。
 
+## 标签
+
+本包与仓库带有 `dsh-plugin`、`dsh`、`deepseek-harness` 等关键词/topics。
+DeepSeek Harness 官方没有插件市场,也没有官方发现标签——第三方插件一旦
+发布,没有任何东西把它关联回生态,用户无从找起。这套社区标签是唯一现实
+的发现渠道(npm 搜 `keywords:dsh-plugin`;GitHub 搜 `topic:dsh-plugin`)。
+虽非官方,但非常重要,所以给它上了。
+
 ## 许可
 
 MIT
