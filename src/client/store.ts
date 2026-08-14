@@ -5,12 +5,34 @@
  * useSyncExternalStore 订阅。
  */
 
+import type { FileAddress } from '../scoped-files.js'
+
+/** 指引文件编辑目标;create 为真表示新建(保存才落盘)。 */
+export interface FileEditTarget extends FileAddress {
+  readonly kind?: 'file'
+  readonly create: boolean
+}
+
+/** 技能文件编辑目标(约束文件面板的技能药丸点开)。 */
+export interface SkillEditTarget {
+  readonly kind: 'skill'
+  /** 技能根的 displayPath(与 overview 一致)。 */
+  readonly root: string
+  /** SKILL.md 相对该根的路径。 */
+  readonly path: string
+  /** 技能名(标题展示)。 */
+  readonly name: string
+}
+
+/** 编辑目标联合。 */
+export type EditTarget = FileEditTarget | SkillEditTarget
+
 /** 面板状态。 */
 export interface PanelState {
   /** 面板是否展开。 */
   readonly open: boolean
-  /** 当前选中的文件名(编辑视图);undefined 为清单视图。 */
-  readonly selected: string | undefined
+  /** 当前编辑目标;undefined 为概览视图。 */
+  readonly editing: EditTarget | undefined
 }
 
 /** 面板 store 的对外面。 */
@@ -19,12 +41,12 @@ export interface PanelStore {
   subscribe(fn: () => void): () => void
   toggle(): void
   close(): void
-  select(name: string | undefined): void
+  edit(target: EditTarget | undefined): void
 }
 
 /** 创建一个面板 store。 */
 export function createPanelStore(): PanelStore {
-  let state: PanelState = { open: false, selected: undefined }
+  let state: PanelState = { open: false, editing: undefined }
   const listeners = new Set<() => void>()
   const emit = (): void => {
     for (const listener of listeners) listener()
@@ -40,11 +62,11 @@ export function createPanelStore(): PanelStore {
       emit()
     },
     close(): void {
-      state = { open: false, selected: undefined }
+      state = { open: false, editing: undefined }
       emit()
     },
-    select(name: string | undefined): void {
-      state = { ...state, selected: name }
+    edit(target: EditTarget | undefined): void {
+      state = { ...state, editing: target }
       emit()
     },
   }

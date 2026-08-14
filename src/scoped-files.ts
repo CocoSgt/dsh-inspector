@@ -1,104 +1,122 @@
 /**
- * dsh 原生项目文件白名单与共享类型。
+ * dsh 指引文件层级模型与共享类型。
  *
- * 清单里的每一个条目都是 DeepSeek Harness(dsh)自身会在项目目录里读写的
- * 文件/目录,来源为 harness 各官方包的实测行为(dsh-agent-instructions、
- * dsh-hooks-claude-code、dsh-hooks-codex、dsh-skill-filesystem、宿主启动
- * 环境加载)。dsh **没有**独立的「规则/规范」文件机制——规则类内容承载在
- * 指引文件(AGENTS.md/CLAUDE.md)里,不单列。
+ * 模型完全对齐 harness 官方 dsh-agent-instructions 插件的真实加载逻辑
+ * (packages/context/agent-instructions):
  *
- * 每个条目固定一个相对路径与中文用途说明;宿主端与客户端共用这份清单,
- * 白名单同时就是路径安全边界(名单内路径均为固定字面量,不含 `..` 与
- * 绝对路径,无法穿越)。
+ * 1. 全局层:`$DSH_HOME/AGENTS.md`(默认 ~/.dsh/AGENTS.md)。只认 AGENTS.md,
+ *    对所有会话生效,永远最先载入。
+ * 2. 项目链:从会话 cwd 向上找最近含 `.git` 的目录作为项目根(找不到则
+ *    cwd 即根),然后**项目根 → cwd 的每一级目录**都探测 4 个候选文件:
+ *    AGENTS.md、CLAUDE.md(基础),AGENTS.local.md、CLAUDE.local.md(本地
+ *    覆盖层,惯例不入库)。存在的全部载入;同目录内去掉首尾空白后内容相同
+ *    的只保留最先的候选(CLAUDE.md 内容与 AGENTS.md 相同时折叠为一份)。
+ * 3. 顺序即优先级:从全局到 cwd 由宽到专,模型被告知「更具体的指引优先」。
+ *    字节预算(默认 64KB)超限时先整体省略最宽的,最专的最后才截断;单文件
+ *    超过 1MB 直接被 harness 忽略。
+ * 4. cwd 之下的子目录指引**不预载**:模型读写该子目录中的文件时才作为
+ *    「附加指引」按需注入,内容变化/删除也会在会话中期动态对账。
+ *
+ * hooks.json / codex-hooks.json(桥默认不挂载、配置路径必填无默认文件名)、
+ * .env(启动目录进程级读一次)、.sessions(ACP 内部持久化)都不是「项目级、
+ * 会话可见」的文件,不在本面板管理范围内。
+ *
+ * 技能目录是另一类默认生效的项目级扩展:项目根 `.dsh/skills`、
+ * `.agents/skills` 与用户级 `~/.dsh/skills`、`~/.agents/skills`
+ * (dsh-skill-filesystem 扫描并实时监听),面板只展示状态不做内容编辑。
  */
 
-/** 条目所属的功能分组(展示顺序见 GROUP_ORDER)。 */
-export type ScopedFileGroup = 'instructions' | 'hooks' | 'skills' | 'env' | 'sessions'
+/** 每一级目录探测的基础指引候选(顺序即 harness 的候选优先序)。 */
+export const BASE_CANDIDATES = ['AGENTS.md', 'CLAUDE.md'] as const
 
-/** 条目形态:文件可读/写/删,目录仅展示存在性与条目数。 */
-export type ScopedFileKind = 'file' | 'dir'
+/** 每一级目录探测的本地覆盖层候选(基础候选之后载入,惯例不入库)。 */
+export const LOCAL_CANDIDATES = ['AGENTS.local.md', 'CLAUDE.local.md'] as const
 
-/** 一个 dsh 原生项目文件的静态描述。 */
-export interface ScopedFileSpec {
-  /** 工作区根目录下的相对路径(POSIX 分隔符,白名单固定字面量)。 */
-  readonly path: string
-  /** 功能分组。 */
-  readonly group: ScopedFileGroup
-  /** 文件或目录。 */
-  readonly kind: ScopedFileKind
-  /** 用途说明(中文,展示给用户)。 */
-  readonly purpose: string
+/** 全部指引候选文件名(写入白名单)。 */
+export const ALL_CANDIDATES: readonly string[] = [...BASE_CANDIDATES, ...LOCAL_CANDIDATES]
+
+/** harness 单文件源大小上限(dsh-agent-instructions 默认 maxSourceBytes);超过即被忽略。 */
+export const MAX_SOURCE_BYTES = 1_048_576
+
+/** 指引文件的归属层。 */
+export type InstructionScope = 'global' | 'project'
+
+/** 一个指引文件的地址:层 + 项目根相对目录('' 为根;global 层恒 '')+ 文件名。 */
+export interface FileAddress {
+  readonly scope: InstructionScope
+  readonly dir: string
+  readonly name: string
 }
 
-/** 分组展示顺序。 */
-export const GROUP_ORDER: readonly ScopedFileGroup[] = ['instructions', 'hooks', 'skills', 'env', 'sessions']
-
-/** 分组的中文标题。 */
-export const GROUP_LABELS: Readonly<Record<ScopedFileGroup, string>> = {
-  instructions: '项目指引',
-  hooks: 'Hooks',
-  skills: '项目技能目录',
-  env: '环境变量',
-  sessions: '会话记录',
-}
-
-/**
- * 受支持的 dsh 原生项目文件清单(展示顺序即清单顺序)。
- *
- * 指引:dsh-agent-instructions 自项目根(最近的 .git 祖先)逐级向 cwd 合并,
- * AGENTS.md 为首选、CLAUDE.md 为一等候选,两者内容去重;*.local.md 为
- * 不入库的本地覆盖层。Hooks:两种方言均相对启动 cwd 读取、进程级只读一次。
- */
-export const SCOPED_FILE_SPECS: readonly ScopedFileSpec[] = [
-  { path: 'AGENTS.md', group: 'instructions', kind: 'file', purpose: 'dsh 首选项目指引(自项目根逐级合并到 cwd)' },
-  { path: 'CLAUDE.md', group: 'instructions', kind: 'file', purpose: 'dsh 一等候选指引(与 AGENTS.md 内容去重后合并)' },
-  { path: 'AGENTS.local.md', group: 'instructions', kind: 'file', purpose: 'AGENTS.md 的本地覆盖层(通常不入库)' },
-  { path: 'CLAUDE.local.md', group: 'instructions', kind: 'file', purpose: 'CLAUDE.md 的本地覆盖层(通常不入库)' },
-  { path: 'hooks.json', group: 'hooks', kind: 'file', purpose: 'Claude Code 方言 Hook 配置(原生 dsh-hooks-claude-code 桥;默认组合未挂载该桥,挂载后相对启动目录读取一次)' },
-  { path: 'codex-hooks.json', group: 'hooks', kind: 'file', purpose: 'Codex 方言 Hook 配置(原生 dsh-hooks-codex 桥;默认组合未挂载该桥,挂载后相对启动目录读取一次)' },
-  { path: '.dsh/skills', group: 'skills', kind: 'dir', purpose: 'dsh 项目技能根(默认生效,由技能系统扫描整棵技能树)' },
-  { path: '.agents/skills', group: 'skills', kind: 'dir', purpose: '跨代理共享的项目技能根(默认生效)' },
-  { path: '.env', group: 'env', kind: 'file', purpose: 'dsh 启动时从启动目录加载的环境变量文件(process.loadEnvFile,可能含 API 密钥,谨慎编辑)' },
-  { path: '.sessions', group: 'sessions', kind: 'dir', purpose: '会话 JSONL 持久化目录(ACP 组合的默认 persistenceRoot,相对启动目录)' },
-]
-
-/** 按相对路径建索引的白名单集合。 */
-export const SCOPED_FILE_PATHS: ReadonlySet<string> = new Set(SCOPED_FILE_SPECS.map(spec => spec.path))
-
-/** 按相对路径取条目描述的映射。 */
-export const SCOPED_FILE_BY_PATH: ReadonlyMap<string, ScopedFileSpec> = new Map(
-  SCOPED_FILE_SPECS.map(spec => [spec.path, spec] as const),
-)
-
-/** 一个项目文件的当前状态(list 返回行)。 */
-export interface ScopedFileMeta {
-  /** 相对路径。 */
-  readonly path: string
-  /** 功能分组。 */
-  readonly group: ScopedFileGroup
-  /** 文件或目录。 */
-  readonly kind: ScopedFileKind
-  /** 用途说明。 */
-  readonly purpose: string
-  /** 当前是否存在。 */
+/** 一个指引候选文件的当前状态。 */
+export interface InstructionFileMeta {
+  /** 候选文件名(ALL_CANDIDATES 之一)。 */
+  readonly name: string
+  /** 是否存在。 */
   readonly exists: boolean
-  /** 文件字节数(目录恒为 0)。 */
+  /** 字节数(不存在为 0)。 */
   readonly size: number
-  /** 目录顶层条目数(仅 kind 为 'dir' 且存在时给出;文件条目省略此字段)。 */
-  readonly entries?: number
   /** 最近修改时间(ISO 8601,不存在为空字符串)。 */
   readonly mtimeIso: string
+  /** 本地覆盖层(*.local.md,惯例不入库)。 */
+  readonly local: boolean
+  /** 同目录内容与更早候选相同,被 harness 折叠;值为被保留的那个文件名。 */
+  readonly duplicateOf?: string
+  /** 超过 harness 单文件上限(MAX_SOURCE_BYTES),会被忽略。 */
+  readonly oversized?: boolean
 }
 
-/** projectFiles/list 的返回。 */
-export interface ListResult {
-  /** 本次检查的工作区根目录。 */
-  readonly root: string
-  /** 全部候选文件的状态。 */
-  readonly files: readonly ScopedFileMeta[]
+/** 指引链上的一层(一个目录)。 */
+export interface InstructionLayer {
+  /** 归属层。 */
+  readonly scope: InstructionScope
+  /** 项目根相对目录('' 为项目根;global 层恒 '')。 */
+  readonly dir: string
+  /** 展示用目录路径(global 为 ~/.dsh 形式,project 为根相对路径或根目录名)。 */
+  readonly displayDir: string
+  /** 此层是否即会话当前工作目录。 */
+  readonly isCwd: boolean
+  /** 全部候选文件状态(存在与否都在,顺序即候选优先序)。 */
+  readonly files: readonly InstructionFileMeta[]
 }
 
-/** projectFiles/read 的返回。 */
+/** 一个技能根目录的状态。 */
+export interface SkillRootMeta {
+  /** 展示路径(项目内为根相对路径,用户级为 ~ 形式)。 */
+  readonly displayPath: string
+  /** 项目级或用户级。 */
+  readonly level: 'project' | 'user'
+  /** 是否存在。 */
+  readonly exists: boolean
+  /** 目录树内 SKILL.md 的数量(存在时给出)。 */
+  readonly skillCount?: number
+  /** 技能清单(存在时给出;frontmatter name + 根相对 SKILL.md 路径,限量)。 */
+  readonly skills?: readonly SkillEntry[]
+}
+
+/** 技能根目录里的一个技能(可预览/编辑的最小地址)。 */
+export interface SkillEntry {
+  /** 技能名(frontmatter name,回退目录/文件名)。 */
+  readonly name: string
+  /** SKILL.md(或平铺 .md)相对该技能根的路径。 */
+  readonly path: string
+}
+
+/** projectFiles/overview 的返回:当前会话的完整指引链与技能根状态。 */
+export interface OverviewResult {
+  /** 会话工作区目录(解析后的绝对路径)。 */
+  readonly cwd: string
+  /** 项目根(最近含 .git 的祖先,或 cwd 本身)。 */
+  readonly projectRoot: string
+  /** cwd 相对项目根的路径('' 表示两者相同)。 */
+  readonly cwdRel: string
+  /** 指引链,按 harness 真实载入顺序:全局 → 项目根 → … → cwd。 */
+  readonly layers: readonly InstructionLayer[]
+  /** 技能根目录状态(项目级两个 + 用户级两个)。 */
+  readonly skills: readonly SkillRootMeta[]
+}
+
+/** projectFiles/readFile 的返回。 */
 export interface ReadResult {
   /** 文件全文。 */
   readonly content: string
@@ -108,7 +126,7 @@ export interface ReadResult {
   readonly mtimeIso: string
 }
 
-/** projectFiles/write 的返回。 */
+/** projectFiles/writeFile 的返回。 */
 export interface WriteResult {
   /** 写入后的字节数。 */
   readonly size: number

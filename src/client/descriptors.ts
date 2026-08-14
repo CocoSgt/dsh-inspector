@@ -2,51 +2,58 @@
  * 手写的 projectFiles 客户端调用描述符。
  *
  * 宿主端以 SRC 模式暴露方法,wire 字段名就是宿主方法的参数名
- * (root/name/content);客户端 $mount 时用 strict zod schema 对出入参
- * 做边界校验。描述符与宿主实现(src/index.ts)一一对应。
+ * (cwd/scope/dir/name/content);客户端 $mount 时用 strict zod schema
+ * 对出入参做边界校验。描述符与宿主实现(src/index.ts)一一对应。
  */
 
 import { z } from 'zod'
 import type { InvocationDescriptorLike, ParameterDescriptor, StrictCodec } from './types.js'
 
-const stringCodec = (typeSymbol: string): StrictCodec =>
-  ({ mode: 'strict', typeSymbol, schema: z.string() })
-
-const rootParameter: ParameterDescriptor = {
-  name: 'root',
-  wire: 'root',
+const stringParameter = (name: string, typeSymbol: string): ParameterDescriptor => ({
+  name,
+  wire: name,
   source: 'json',
-  codec: stringCodec('dsh-project-files#Root'),
-}
-
-const nameParameter: ParameterDescriptor = {
-  name: 'name',
-  wire: 'name',
-  source: 'json',
-  codec: stringCodec('dsh-project-files#ScopedFileName'),
-}
-
-const contentParameter: ParameterDescriptor = {
-  name: 'content',
-  wire: 'content',
-  source: 'json',
-  codec: stringCodec('dsh-project-files#FileContent'),
-}
-
-const scopedFileMeta = z.object({
-  path: z.string(),
-  group: z.enum(['instructions', 'hooks', 'skills', 'env', 'sessions']),
-  kind: z.enum(['file', 'dir']),
-  purpose: z.string(),
-  exists: z.boolean(),
-  size: z.number(),
-  entries: z.number().optional(),
-  mtimeIso: z.string(),
+  codec: { mode: 'strict', typeSymbol, schema: z.string() },
 })
 
-const listResult = z.object({
-  root: z.string(),
-  files: z.array(scopedFileMeta),
+const cwdParameter = stringParameter('cwd', 'dsh-context-inspector#Cwd')
+const scopeParameter = stringParameter('scope', 'dsh-context-inspector#Scope')
+const dirParameter = stringParameter('dir', 'dsh-context-inspector#Dir')
+const nameParameter = stringParameter('name', 'dsh-context-inspector#Name')
+const contentParameter = stringParameter('content', 'dsh-context-inspector#Content')
+
+const instructionFileMeta = z.object({
+  name: z.string(),
+  exists: z.boolean(),
+  size: z.number(),
+  mtimeIso: z.string(),
+  local: z.boolean(),
+  duplicateOf: z.string().optional(),
+  oversized: z.boolean().optional(),
+})
+
+const instructionLayer = z.object({
+  scope: z.enum(['global', 'project']),
+  dir: z.string(),
+  displayDir: z.string(),
+  isCwd: z.boolean(),
+  files: z.array(instructionFileMeta),
+})
+
+const skillRootMeta = z.object({
+  displayPath: z.string(),
+  level: z.enum(['project', 'user']),
+  exists: z.boolean(),
+  skillCount: z.number().optional(),
+  skills: z.array(z.object({ name: z.string(), path: z.string() })).optional(),
+})
+
+const overviewResult = z.object({
+  cwd: z.string(),
+  projectRoot: z.string(),
+  cwdRel: z.string(),
+  layers: z.array(instructionLayer),
+  skills: z.array(skillRootMeta),
 })
 
 const readResult = z.object({
@@ -67,44 +74,66 @@ const removeResult = z.object({
 const resultCodec = (symbol: string, schema: { parse(value: unknown): unknown }): StrictCodec =>
   ({ mode: 'strict', typeSymbol: symbol, schema })
 
+const addressParameters = [cwdParameter, scopeParameter, dirParameter, nameParameter]
+const rootParameter = stringParameter('root', 'dsh-context-inspector#SkillRoot')
+const skillPathParameter = stringParameter('skillPath', 'dsh-context-inspector#SkillPath')
+
 /** 构造 projectFiles 命名空间的全部调用描述符。 */
 export function buildDescriptors(): readonly InvocationDescriptorLike[] {
   return [
     {
-      id: 'dsh-project-files#projectFiles/list',
+      id: 'dsh-context-inspector#projectFiles/overview',
       service: 'projectFiles',
       namespace: 'projectFiles',
-      method: 'list',
+      method: 'overview',
       invocation: { kind: 'direct' },
-      parameters: [rootParameter],
-      result: resultCodec('dsh-project-files#ListResult', listResult),
+      parameters: [cwdParameter],
+      result: resultCodec('dsh-context-inspector#OverviewResult', overviewResult),
     },
     {
-      id: 'dsh-project-files#projectFiles/read',
+      id: 'dsh-context-inspector#projectFiles/readFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
-      method: 'read',
+      method: 'readFile',
       invocation: { kind: 'direct' },
-      parameters: [rootParameter, nameParameter],
-      result: resultCodec('dsh-project-files#ReadResult', readResult),
+      parameters: addressParameters,
+      result: resultCodec('dsh-context-inspector#ReadResult', readResult),
     },
     {
-      id: 'dsh-project-files#projectFiles/write',
+      id: 'dsh-context-inspector#projectFiles/readSkillFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
-      method: 'write',
+      method: 'readSkillFile',
       invocation: { kind: 'direct' },
-      parameters: [rootParameter, nameParameter, contentParameter],
-      result: resultCodec('dsh-project-files#WriteResult', writeResult),
+      parameters: [cwdParameter, rootParameter, skillPathParameter],
+      result: resultCodec('dsh-context-inspector#ReadResult', readResult),
     },
     {
-      id: 'dsh-project-files#projectFiles/removeFile',
+      id: 'dsh-context-inspector#projectFiles/writeSkillFile',
+      service: 'projectFiles',
+      namespace: 'projectFiles',
+      method: 'writeSkillFile',
+      invocation: { kind: 'direct' },
+      parameters: [cwdParameter, rootParameter, skillPathParameter, contentParameter],
+      result: resultCodec('dsh-context-inspector#WriteResult', writeResult),
+    },
+    {
+      id: 'dsh-context-inspector#projectFiles/writeFile',
+      service: 'projectFiles',
+      namespace: 'projectFiles',
+      method: 'writeFile',
+      invocation: { kind: 'direct' },
+      parameters: [...addressParameters, contentParameter],
+      result: resultCodec('dsh-context-inspector#WriteResult', writeResult),
+    },
+    {
+      id: 'dsh-context-inspector#projectFiles/removeFile',
       service: 'projectFiles',
       namespace: 'projectFiles',
       method: 'removeFile',
       invocation: { kind: 'direct' },
-      parameters: [rootParameter, nameParameter],
-      result: resultCodec('dsh-project-files#RemoveResult', removeResult),
+      parameters: addressParameters,
+      result: resultCodec('dsh-context-inspector#RemoveResult', removeResult),
     },
   ]
 }

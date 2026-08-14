@@ -6,7 +6,7 @@
  * 注册。运行时契约由 dsh-client-runtime / ui-slots / api-gateway 提供。
  */
 
-import type { ListResult, ReadResult, RemoveResult, WriteResult } from '../scoped-files.js'
+import type { OverviewResult, ReadResult, RemoveResult, WriteResult } from '../scoped-files.js'
 
 /** 一个 strict zod 编解码器(客户端描述符用)。 */
 export interface StrictCodec {
@@ -46,10 +46,12 @@ export type RpcResult<T> = { ok: true; value: T } | { ok: false; error: { code: 
 
 /** projectFiles 命名空间挂载后的调用面。 */
 export interface ProjectFilesCalls {
-  list(root: string): Promise<RpcResult<ListResult>>
-  read(root: string, name: string): Promise<RpcResult<ReadResult>>
-  write(root: string, name: string, content: string): Promise<RpcResult<WriteResult>>
-  removeFile(root: string, name: string): Promise<RpcResult<RemoveResult>>
+  overview(cwd: string): Promise<RpcResult<OverviewResult>>
+  readFile(cwd: string, scope: string, dir: string, name: string): Promise<RpcResult<ReadResult>>
+  readSkillFile(cwd: string, root: string, skillPath: string): Promise<RpcResult<ReadResult>>
+  writeSkillFile(cwd: string, root: string, skillPath: string, content: string): Promise<RpcResult<WriteResult>>
+  writeFile(cwd: string, scope: string, dir: string, name: string, content: string): Promise<RpcResult<WriteResult>>
+  removeFile(cwd: string, scope: string, dir: string, name: string): Promise<RpcResult<RemoveResult>>
 }
 
 /** 会话摘要中本插件关心的字段。 */

@@ -1,12 +1,12 @@
 {
-  "name": "dsh-project-files",
+  "name": "dsh-context-inspector",
   "version": "0.1.0",
-  "description": "dsh 插件三·项目文件管理器:在右侧面板查看/编辑当前项目的作用域指引文件(CLAUDE.md、AGENTS.md 等),显示写入时间与用途",
+  "description": "dsh 上下文检查器:按 harness 真实载入顺序展示当前会话生效中的指引链与技能,就地新建与编辑;所见即模型所得",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CocoSgt/dsh-project-files.git"
+    "url": "git+https://github.com/CocoSgt/dsh-context-inspector.git"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",

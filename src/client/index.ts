@@ -1,5 +1,5 @@
 /**
- * dsh-project-files 浏览器端插件。
+ * dsh-context-inspector 浏览器端插件。
  *
  * 职责:把手写的 projectFiles 调用描述符挂载到 ctx.remote($mount),
  * 然后向两个 slot 注册 UI —— shell.overlay 的右侧浮动面板,和
@@ -9,7 +9,7 @@
  */
 
 import type {
-  ListResult, ReadResult, RemoveResult, WriteResult,
+  OverviewResult, ReadResult, RemoveResult, WriteResult,
 } from '../scoped-files.js'
 import { buildDescriptors } from './descriptors.js'
 import { ProjectFilesPanel, ProjectFilesToggle, type ProjectFilesApi } from './panel.js'
@@ -30,11 +30,17 @@ function unwrap<T>(result: RpcResult<T>): T {
 function createApi(ctx: ClientContext): ProjectFilesApi {
   const calls = ctx.remote.projectFiles
   return {
-    list: async (root: string): Promise<ListResult> => unwrap(await calls.list(root)),
-    read: async (root: string, name: string): Promise<ReadResult> => unwrap(await calls.read(root, name)),
-    write: async (root: string, name: string, content: string): Promise<WriteResult> =>
-      unwrap(await calls.write(root, name, content)),
-    remove: async (root: string, name: string): Promise<RemoveResult> => unwrap(await calls.removeFile(root, name)),
+    overview: async (cwd: string): Promise<OverviewResult> => unwrap(await calls.overview(cwd)),
+    readFile: async (cwd: string, scope: string, dir: string, name: string): Promise<ReadResult> =>
+      unwrap(await calls.readFile(cwd, scope, dir, name)),
+    readSkillFile: async (cwd: string, root: string, skillPath: string): Promise<ReadResult> =>
+      unwrap(await calls.readSkillFile(cwd, root, skillPath)),
+    writeSkillFile: async (cwd: string, root: string, skillPath: string, content: string): Promise<WriteResult> =>
+      unwrap(await calls.writeSkillFile(cwd, root, skillPath, content)),
+    writeFile: async (cwd: string, scope: string, dir: string, name: string, content: string): Promise<WriteResult> =>
+      unwrap(await calls.writeFile(cwd, scope, dir, name, content)),
+    removeFile: async (cwd: string, scope: string, dir: string, name: string): Promise<RemoveResult> =>
+      unwrap(await calls.removeFile(cwd, scope, dir, name)),
   }
 }
 
@@ -46,10 +52,10 @@ export async function apply(ctx: ClientContext): Promise<void> {
   ensureStyles()
 
   const disposeRemote = await ctx.remote.$mount({
-    package: 'dsh-project-files',
+    package: 'dsh-context-inspector',
     descriptors: buildDescriptors(),
   })
-  ctx.effect(() => () => { void disposeRemote() }, 'dsh-project-files: 远端描述符挂载')
+  ctx.effect(() => () => { void disposeRemote() }, 'dsh-context-inspector: 远端描述符挂载')
 
   const store = createPanelStore()
 
@@ -62,14 +68,14 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
     ctx.slots.inject('shell.overlay', () => ctx.slots.register({
       name: 'shell.overlay',
-      id: 'dsh-project-files',
+      id: 'dsh-context-inspector',
       order: 20,
       inject: (): Record<string, unknown> => ({ api, sessions: ctx.sessions, store }),
     }, ProjectFilesPanel))
 
     ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
       name: 'conversation.session.header.utilities',
-      id: 'dsh-project-files',
+      id: 'dsh-context-inspector',
       order: 30,
       inject: (): Record<string, unknown> => ({ store }),
     }, ProjectFilesToggle))
