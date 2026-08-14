@@ -1,7 +1,7 @@
 {
   "name": "dsh-context-inspector",
   "version": "0.1.0",
-  "description": "dsh 上下文检查器:按 harness 真实载入顺序展示当前会话生效中的指引链与技能,就地新建与编辑;所见即模型所得",
+  "description": "Inspect and manage the live instruction chain and project skills for the current dsh session, with in-place creation and editing — what you see is what the model gets",
   "type": "module",
   "license": "MIT",
   "repository": {

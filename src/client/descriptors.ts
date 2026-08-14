@@ -71,6 +71,21 @@ const removeResult = z.object({
   removed: z.boolean(),
 })
 
+/** 业务失败状态(宿主以数据返回用户可见失败,替代抛错)。 */
+const failureStatus = z.object({
+  ok: z.literal(false),
+  code: z.string(),
+  text: z.string(),
+  params: z.record(z.string(), z.string()).optional(),
+  level: z.literal('error'),
+})
+
+/** 各端点的返回:成功数据或失败状态。 */
+const overviewOutcome = z.union([overviewResult, failureStatus])
+const readOutcome = z.union([readResult, failureStatus])
+const writeOutcome = z.union([writeResult, failureStatus])
+const removeOutcome = z.union([removeResult, failureStatus])
+
 const resultCodec = (symbol: string, schema: { parse(value: unknown): unknown }): StrictCodec =>
   ({ mode: 'strict', typeSymbol: symbol, schema })
 
@@ -88,7 +103,7 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       method: 'overview',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter],
-      result: resultCodec('dsh-context-inspector#OverviewResult', overviewResult),
+      result: resultCodec('dsh-context-inspector#OverviewResult', overviewOutcome),
     },
     {
       id: 'dsh-context-inspector#projectFiles/readFile',
@@ -97,7 +112,7 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       method: 'readFile',
       invocation: { kind: 'direct' },
       parameters: addressParameters,
-      result: resultCodec('dsh-context-inspector#ReadResult', readResult),
+      result: resultCodec('dsh-context-inspector#ReadResult', readOutcome),
     },
     {
       id: 'dsh-context-inspector#projectFiles/readSkillFile',
@@ -106,7 +121,7 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       method: 'readSkillFile',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter, rootParameter, skillPathParameter],
-      result: resultCodec('dsh-context-inspector#ReadResult', readResult),
+      result: resultCodec('dsh-context-inspector#ReadResult', readOutcome),
     },
     {
       id: 'dsh-context-inspector#projectFiles/writeSkillFile',
@@ -115,7 +130,7 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       method: 'writeSkillFile',
       invocation: { kind: 'direct' },
       parameters: [cwdParameter, rootParameter, skillPathParameter, contentParameter],
-      result: resultCodec('dsh-context-inspector#WriteResult', writeResult),
+      result: resultCodec('dsh-context-inspector#WriteResult', writeOutcome),
     },
     {
       id: 'dsh-context-inspector#projectFiles/writeFile',
@@ -124,7 +139,7 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       method: 'writeFile',
       invocation: { kind: 'direct' },
       parameters: [...addressParameters, contentParameter],
-      result: resultCodec('dsh-context-inspector#WriteResult', writeResult),
+      result: resultCodec('dsh-context-inspector#WriteResult', writeOutcome),
     },
     {
       id: 'dsh-context-inspector#projectFiles/removeFile',
@@ -133,7 +148,7 @@ export function buildDescriptors(): readonly InvocationDescriptorLike[] {
       method: 'removeFile',
       invocation: { kind: 'direct' },
       parameters: addressParameters,
-      result: resultCodec('dsh-context-inspector#RemoveResult', removeResult),
+      result: resultCodec('dsh-context-inspector#RemoveResult', removeOutcome),
     },
   ]
 }

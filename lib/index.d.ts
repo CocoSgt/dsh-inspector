@@ -17,14 +17,20 @@
  * 最终路径 resolve 后再做前缀校验。目录(技能根)只在 overview 里展示状态,
  * 不接受内容读写。
  *
+ * 失败协议:用户可见的失败不抛错(RPC 封套会把抛错塌缩成 internal + 裸
+ * message,客户端拿不到结构化信息),而是以 FailureStatus 数据随结果返回:
+ * 稳定点分 code(cwd.err.* / address.err.* / read.err.* …)+ 中文兜底文案
+ * + 可选插值参数 + level:'error'。客户端按 code 查词典本地化,缺键退回
+ * 中文兜底。可选字段条件展开(src-json codec 拒绝 undefined)。
+ *
  * 重要:Gateway 通过 Function.prototype.toString 读取方法参数名作为
  * wire 字段名,因此本文件的公开方法必须保持「简单标识符参数」形态
  * (不解构、无默认值、无剩余参数),且构建产物不得压缩改写参数名。
  */
 import type { Context } from '@deepseek-ai/cordis';
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol';
-import { type OverviewResult, type ReadResult, type RemoveResult, type WriteResult } from './scoped-files.js';
-export type { FileAddress, InstructionFileMeta, InstructionLayer, InstructionScope, OverviewResult, ReadResult, RemoveResult, SkillRootMeta, WriteResult, } from './scoped-files.js';
+import { type OverviewResult, type ReadResult, type RemoveResult, type RpcOutcome, type WriteResult } from './scoped-files.js';
+export type { FailureStatus, FileAddress, InstructionFileMeta, InstructionLayer, InstructionScope, OverviewResult, ReadResult, RemoveResult, RpcOutcome, SkillRootMeta, WriteResult, } from './scoped-files.js';
 export { ALL_CANDIDATES, BASE_CANDIDATES, LOCAL_CANDIDATES, MAX_SOURCE_BYTES } from './scoped-files.js';
 /**
  * projectFiles 网关服务:当前会话指引链(全局 + 项目链)的概览/读取/写入/删除,
@@ -37,20 +43,20 @@ export declare class ProjectFilesGateway extends TypertRemoteService {
     /** 解析一个读写地址为绝对路径(校验 scope/dir/name 全部命中白名单)。 */
     private resolveAddress;
     /** 当前会话的完整指引链概览:全局层、项目链每级候选状态、技能根状态。 */
-    overview(cwd: string): OverviewResult;
+    overview(cwd: string): RpcOutcome<OverviewResult>;
     /** 按 overview 的 displayPath 解析技能根的绝对路径(限四个已知根)。 */
     private resolveSkillRoot;
     /** 解析技能文件地址(root 相对路径,必须命中 .md 且不越根)。 */
     private resolveSkillFile;
     /** 读取一个技能文件(SKILL.md/平铺 .md)的全文与元信息。 */
-    readSkillFile(cwd: string, root: string, skillPath: string): ReadResult;
+    readSkillFile(cwd: string, root: string, skillPath: string): RpcOutcome<ReadResult>;
     /** 写入一个技能文件(字节原样;经符号链接写穿到来源)。 */
-    writeSkillFile(cwd: string, root: string, skillPath: string, content: string): WriteResult;
+    writeSkillFile(cwd: string, root: string, skillPath: string, content: string): RpcOutcome<WriteResult>;
     /** 读取指引链上一个文件的全文与元信息。 */
-    readFile(cwd: string, scope: string, dir: string, name: string): ReadResult;
+    readFile(cwd: string, scope: string, dir: string, name: string): RpcOutcome<ReadResult>;
     /** 写入(新建或覆盖)指引链上一个文件,返回写入后的元信息。 */
-    writeFile(cwd: string, scope: string, dir: string, name: string, content: string): WriteResult;
+    writeFile(cwd: string, scope: string, dir: string, name: string, content: string): RpcOutcome<WriteResult>;
     /** 删除指引链上一个文件;文件本就不存在时 removed 为 false。命名为 removeFile:客户端命名空间服务的原型上已占用 remove。 */
-    removeFile(cwd: string, scope: string, dir: string, name: string): RemoveResult;
+    removeFile(cwd: string, scope: string, dir: string, name: string): RpcOutcome<RemoveResult>;
 }
 export default ProjectFilesGateway;

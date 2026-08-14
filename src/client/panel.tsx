@@ -8,29 +8,47 @@
  * 概览视图按 harness 真实载入顺序展示指引链:全局 $DSH_HOME/AGENTS.md →
  * 项目根 → … → cwd,每层就地新建缺失候选;技能根目录作为次级分区只读展示。
  * 编辑视图带脏态守卫(未保存不静默丢弃)与 Cmd/Ctrl+S 保存。
+ *
+ * 双语:两个 slot 注册都声明 locale: NS,框架把 t 标准位放进组件 props
+ * (locale 切换时 t 身份变化触发重渲染);t 沿 props 下传到各子组件。新建
+ * 文件的种子模板同样经 t 读取 —— 模板是落盘文件的内容,跟随 UI 语言,且
+ * 只在新建(文件尚不存在)时取,已存在文件的编辑不会被重新模板化。
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import {
   BASE_CANDIDATES,
+  type FailureStatus,
   type InstructionFileMeta,
   type InstructionLayer,
   type OverviewResult,
   type ReadResult,
   type RemoveResult,
+  type RpcOutcome,
   type WriteResult,
 } from '../scoped-files.js'
+import type { Key } from './locales.js'
 import type { EditTarget, FileEditTarget, SkillEditTarget, PanelStore } from './store.js'
 import type { SessionsFace } from './types.js'
 
-/** 解包后的宿主调用面(错误直接抛 Error)。 */
+/**
+ * slot locale 标准位(t)的本地类型。第三方命名空间进不了宿主
+ * LocaleNamespaceMap 的合并表,PropsLocale 对它退化为 object,因此这里按
+ * 结构声明,键域收窄到本插件词典。
+ */
+type LocaleProps = { readonly t: TFunc }
+
+/** 组件树内传递的翻译函数(调用时读取当前 locale)。 */
+type TFunc = (key: Key, params?: Readonly<Record<string, unknown>>) => string
+
+/** 解包后的宿主调用面(封套错误直接抛 Error;业务失败以 FailureStatus 返回)。 */
 export interface ProjectFilesApi {
-  overview(cwd: string): Promise<OverviewResult>
-  readFile(cwd: string, scope: string, dir: string, name: string): Promise<ReadResult>
-  readSkillFile(cwd: string, root: string, skillPath: string): Promise<ReadResult>
-  writeSkillFile(cwd: string, root: string, skillPath: string, content: string): Promise<WriteResult>
-  writeFile(cwd: string, scope: string, dir: string, name: string, content: string): Promise<WriteResult>
-  removeFile(cwd: string, scope: string, dir: string, name: string): Promise<RemoveResult>
+  overview(cwd: string): Promise<RpcOutcome<OverviewResult>>
+  readFile(cwd: string, scope: string, dir: string, name: string): Promise<RpcOutcome<ReadResult>>
+  readSkillFile(cwd: string, root: string, skillPath: string): Promise<RpcOutcome<ReadResult>>
+  writeSkillFile(cwd: string, root: string, skillPath: string, content: string): Promise<RpcOutcome<WriteResult>>
+  writeFile(cwd: string, scope: string, dir: string, name: string, content: string): Promise<RpcOutcome<WriteResult>>
+  removeFile(cwd: string, scope: string, dir: string, name: string): Promise<RpcOutcome<RemoveResult>>
 }
 
 /** 面板组件的注入 props。 */
@@ -40,8 +58,8 @@ export interface PanelInjected {
   readonly store: PanelStore
 }
 
-/** 面板组件实际收到的 props(含 slot 标准位,这里未用)。 */
-export type PanelProps = PanelInjected & Record<string, unknown>
+/** 面板组件实际收到的 props(含 locale 标准位 t)。 */
+export type PanelProps = PanelInjected & LocaleProps & Record<string, unknown>
 
 /** 开关按钮的注入 props。 */
 export interface ToggleInjected {
@@ -49,22 +67,38 @@ export interface ToggleInjected {
 }
 
 /** 开关按钮实际收到的 props(session 作用域标准位含 sessionId,未用)。 */
-export type ToggleProps = ToggleInjected & Record<string, unknown>
+export type ToggleProps = ToggleInjected & LocaleProps & Record<string, unknown>
 
-/** 新建文件时预填的初始模板(保存才落盘,直接放弃则不产生文件)。 */
-const FILE_TEMPLATES: Readonly<Record<string, string>> = {
-  'AGENTS.md': '# 项目指引\n\n## 约定\n\n- \n',
-  'CLAUDE.md': '# 项目指引\n\n## 约定\n\n- \n',
-  'AGENTS.local.md': '<!-- 本地覆盖层:只对这台机器生效,建议加入 .gitignore -->\n\n- \n',
-  'CLAUDE.local.md': '<!-- 本地覆盖层:只对这台机器生效,建议加入 .gitignore -->\n\n- \n',
+/** 支持就地新建的候选文件名(模板内容在词典里,跟随 UI 语言)。 */
+const TEMPLATE_NAMES: readonly string[] = ['AGENTS.md', 'CLAUDE.md', 'AGENTS.local.md', 'CLAUDE.local.md']
+
+/** 业务失败状态判定(ok:false 的失败以数据过 wire,不走 RPC 错误封套)。 */
+function isFailure(value: unknown): value is FailureStatus {
+  return typeof value === 'object' && value !== null && (value as { ok?: unknown }).ok === false
 }
 
-/** 新建候选的一句话说明。 */
-const CANDIDATE_NOTES: Readonly<Record<string, string>> = {
-  'AGENTS.md': '推荐 · dsh 首选指引',
-  'CLAUDE.md': '兼容 Claude Code 项目',
-  'AGENTS.local.md': '本地覆盖 · 建议 gitignore',
-  'CLAUDE.local.md': '本地覆盖 · 建议 gitignore',
+/**
+ * 宿主失败状态的本地化文案:词典命中 code 用翻译(带插值参数),缺键时
+ * 退回宿主随 wire 带来的中文兜底文案(bind 翻译缺键返回键本身)。
+ */
+function hostText(t: TFunc, failure: FailureStatus): string {
+  const translated = t(failure.code as Key, failure.params)
+  return translated === failure.code ? failure.text : translated
+}
+
+/** 新建候选文件时按当前语言取种子模板;键缺失(非候选名)返回空串。 */
+function templateOf(name: string, t: TFunc): string {
+  const key = `template.${name}` as Key
+  const value = t(key)
+  return value === key ? '' : value
+}
+
+/** 新建候选的一句话说明(local 两个候选共用一条)。 */
+function candidateNote(name: string, t: TFunc): string {
+  if (name === 'AGENTS.local.md' || name === 'CLAUDE.local.md') return t('candidate.local')
+  const key = `candidate.${name}` as Key
+  const value = t(key)
+  return value === key ? '' : value
 }
 
 /** 字节数的人类可读形式。 */
@@ -100,15 +134,16 @@ function useCurrentCwd(sessions: SessionsFace): string | undefined {
 function PanelShell(props: {
   cwd: string | undefined
   store: PanelStore
+  t: TFunc
   children: ReactNode
 }): ReactNode {
-  const { cwd, store, children } = props
+  const { cwd, store, t, children } = props
   return (
-    <div className="dpf-panel" role="complementary" aria-label="约束文件">
+    <div className="dpf-panel" role="complementary" aria-label={t('panel.title')}>
       <div className="dpf-header">
-        <span className="dpf-title">约束文件</span>
+        <span className="dpf-title">{t('panel.title')}</span>
         <span className="dpf-path" title={cwd ?? ''}>{cwd ?? ''}</span>
-        <button type="button" className="dpf-close" aria-label="关闭约束文件面板" onClick={() => { store.close() }}>✕</button>
+        <button type="button" className="dpf-close" aria-label={t('panel.close')} onClick={() => { store.close() }}>✕</button>
       </div>
       <div className="dpf-body">{children}</div>
     </div>
@@ -116,25 +151,25 @@ function PanelShell(props: {
 }
 
 /** 一层的标题信息。 */
-function layerTitle(layer: InstructionLayer): { title: string; tags: string[] } {
+function layerTitle(layer: InstructionLayer, t: TFunc): { title: string; tags: string[] } {
   if (layer.scope === 'global') {
-    return { title: layer.displayDir, tags: ['全局 · 所有会话'] }
+    return { title: layer.displayDir, tags: [t('layer.global')] }
   }
   if (layer.dir === '') {
-    const tags = ['项目根']
-    if (layer.isCwd) tags.push('当前工作目录')
+    const tags = [t('layer.projectRoot')]
+    if (layer.isCwd) tags.push(t('layer.cwd'))
     return { title: layer.displayDir, tags }
   }
-  return { title: `${layer.dir}/`, tags: layer.isCwd ? ['当前工作目录'] : [] }
+  return { title: `${layer.dir}/`, tags: layer.isCwd ? [t('layer.cwd')] : [] }
 }
 
 /** 一个存在的指引文件行:名称、状态徽标、修改时间与字节,点击进入编辑。 */
-function FileRow(props: { meta: InstructionFileMeta; onOpen: () => void }): ReactNode {
-  const { meta, onOpen } = props
+function FileRow(props: { meta: InstructionFileMeta; t: TFunc; onOpen: () => void }): ReactNode {
+  const { meta, t, onOpen } = props
   const chips: { text: string; tone: 'muted' | 'warn' }[] = []
-  if (meta.local) chips.push({ text: '本地 · 不入库', tone: 'muted' })
-  if (meta.duplicateOf !== undefined) chips.push({ text: `与 ${meta.duplicateOf} 相同 · 折叠为一份`, tone: 'muted' })
-  if (meta.oversized === true) chips.push({ text: '超 1MB · 不会载入', tone: 'warn' })
+  if (meta.local) chips.push({ text: t('chip.local'), tone: 'muted' })
+  if (meta.duplicateOf !== undefined) chips.push({ text: t('chip.duplicate', { name: meta.duplicateOf }), tone: 'muted' })
+  if (meta.oversized === true) chips.push({ text: t('chip.oversized'), tone: 'warn' })
   return (
     <button type="button" className="dpf-row" onClick={onOpen}>
       <span className="dpf-row-main">
@@ -151,16 +186,17 @@ function FileRow(props: { meta: InstructionFileMeta; onOpen: () => void }): Reac
 /** 一层(一个目录)的卡片:标题、已存在文件、就地新建缺失候选。 */
 function LayerCard(props: {
   layer: InstructionLayer
+  t: TFunc
   onOpen: (meta: InstructionFileMeta) => void
   onCreate: (name: string) => void
 }): ReactNode {
-  const { layer, onOpen, onCreate } = props
+  const { layer, t, onOpen, onCreate } = props
   const [choosing, setChoosing] = useState(false)
-  const { title, tags } = layerTitle(layer)
+  const { title, tags } = layerTitle(layer, t)
   const existing = layer.files.filter(meta => meta.exists)
   const missing = layer.files.filter(meta => !meta.exists)
   // 全局层没有候选可选(只认 AGENTS.md);项目层默认只推荐缺失的候选。
-  const creatable = missing.filter(meta => FILE_TEMPLATES[meta.name] !== undefined)
+  const creatable = missing.filter(meta => TEMPLATE_NAMES.includes(meta.name))
   return (
     <section className="dpf-layer">
       <div className="dpf-layer-head">
@@ -173,13 +209,13 @@ function LayerCard(props: {
             aria-expanded={choosing}
             onClick={() => { setChoosing(value => !value) }}
           >
-            {choosing ? '收起' : '＋ 新建'}
+            {choosing ? t('layer.collapse') : t('layer.new')}
           </button>
         )}
       </div>
       {existing.length === 0 && !choosing
-        ? <div className="dpf-layer-empty">此层暂无指引文件</div>
-        : existing.map(meta => <FileRow key={meta.name} meta={meta} onOpen={() => { onOpen(meta) }} />)}
+        ? <div className="dpf-layer-empty">{t('layer.empty')}</div>
+        : existing.map(meta => <FileRow key={meta.name} meta={meta} t={t} onOpen={() => { onOpen(meta) }} />)}
       {choosing && (
         <div className="dpf-choose">
           {creatable.map(meta => (
@@ -190,7 +226,7 @@ function LayerCard(props: {
               onClick={() => { setChoosing(false); onCreate(meta.name) }}
             >
               <span className="dpf-row-name">{meta.name}</span>
-              <span className="dpf-choose-note">{CANDIDATE_NOTES[meta.name] ?? ''}</span>
+              <span className="dpf-choose-note">{candidateNote(meta.name, t)}</span>
             </button>
           ))}
         </div>
@@ -205,9 +241,10 @@ function FileEditor(props: {
   cwd: string
   target: FileEditTarget
   store: PanelStore
+  t: TFunc
   onBack: () => void
 }): ReactNode {
-  const { api, cwd, target, store, onBack } = props
+  const { api, cwd, target, store, t, onBack } = props
   const [content, setContent] = useState<string | undefined>(undefined)
   const [baseline, setBaseline] = useState<string>('')
   const [meta, setMeta] = useState<string>('')
@@ -225,22 +262,28 @@ function FileEditor(props: {
     setConfirmDelete(false)
     setConfirmDiscard(false)
     if (target.create) {
-      const template = FILE_TEMPLATES[target.name] ?? ''
-      setContent(template)
+      // 模板在新建进入编辑视图时按当前语言读取;此后语言切换不会覆盖
+      // 已输入的内容(t 不在依赖里,也不会重跑此 effect)。
+      setContent(templateOf(target.name, t))
       setBaseline('')
-      setMeta('新建:保存后才会创建这个文件')
+      setMeta(t('editor.creating'))
       return () => { cancelled = true }
     }
     setBusy(true)
     api.readFile(cwd, target.scope, target.dir, target.name)
       .then(result => {
         if (cancelled) return
+        if (isFailure(result)) {
+          setContent('')
+          setStatus({ error: true, text: `${t('err.read')}: ${hostText(t, result)}` })
+          return
+        }
         setContent(result.content)
         setBaseline(result.content)
-        setMeta(`最近写入:${formatTime(result.mtimeIso)} · ${formatSize(result.size)}`)
+        setMeta(t('editor.lastWrite', { time: formatTime(result.mtimeIso), size: formatSize(result.size) }))
       })
       .catch((error: unknown) => {
-        if (!cancelled) setStatus({ error: true, text: `读取失败:${error instanceof Error ? error.message : String(error)}` })
+        if (!cancelled) setStatus({ error: true, text: `${t('err.read')}: ${error instanceof Error ? error.message : String(error)}` })
       })
       .finally(() => { if (!cancelled) setBusy(false) })
     return () => { cancelled = true }
@@ -252,13 +295,17 @@ function FileEditor(props: {
     setStatus(undefined)
     api.writeFile(cwd, target.scope, target.dir, target.name, content)
       .then(result => {
+        if (isFailure(result)) {
+          setStatus({ error: true, text: `${t('err.write')}: ${hostText(t, result)}` })
+          return
+        }
         setBaseline(content)
-        setMeta(`最近写入:${formatTime(result.mtimeIso)} · ${formatSize(result.size)}`)
-        setStatus({ error: false, text: '已保存 · 更新会在会话的下一步注入' })
+        setMeta(t('editor.lastWrite', { time: formatTime(result.mtimeIso), size: formatSize(result.size) }))
+        setStatus({ error: false, text: t('status.saved') })
         if (target.create) store.edit({ ...target, create: false })
       })
       .catch((error: unknown) => {
-        setStatus({ error: true, text: `保存失败:${error instanceof Error ? error.message : String(error)}` })
+        setStatus({ error: true, text: `${t('err.write')}: ${error instanceof Error ? error.message : String(error)}` })
       })
       .finally(() => { setBusy(false) })
   }
@@ -267,9 +314,16 @@ function FileEditor(props: {
     setBusy(true)
     setStatus(undefined)
     api.removeFile(cwd, target.scope, target.dir, target.name)
-      .then(() => { onBack() })
+      .then(result => {
+        if (isFailure(result)) {
+          setStatus({ error: true, text: `${t('err.delete')}: ${hostText(t, result)}` })
+          setBusy(false)
+          return
+        }
+        onBack()
+      })
       .catch((error: unknown) => {
-        setStatus({ error: true, text: `删除失败:${error instanceof Error ? error.message : String(error)}` })
+        setStatus({ error: true, text: `${t('err.delete')}: ${error instanceof Error ? error.message : String(error)}` })
         setBusy(false)
       })
   }
@@ -279,23 +333,23 @@ function FileEditor(props: {
     else onBack()
   }
 
-  const displayDir = target.scope === 'global' ? '~/.dsh' : target.dir === '' ? '项目根' : target.dir
+  const displayDir = target.scope === 'global' ? '~/.dsh' : target.dir === '' ? t('layer.projectRoot') : target.dir
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       <div className="dpf-editor-head">
-        <button type="button" className="dpf-btn" onClick={requestBack}>← 返回</button>
+        <button type="button" className="dpf-btn" onClick={requestBack}>{t('editor.back')}</button>
         <span className="dpf-editor-name">
           {displayDir} / {target.name}
-          {dirty ? <span className="dpf-dirty" title="有未保存的修改">●</span> : null}
+          {dirty ? <span className="dpf-dirty" title={t('editor.dirty')}>●</span> : null}
         </span>
       </div>
-      <div className="dpf-editor-meta">{content === undefined ? '读取中…' : meta}</div>
+      <div className="dpf-editor-meta">{content === undefined ? t('editor.loading') : meta}</div>
       {confirmDiscard && (
         <div className="dpf-guard">
-          <span>有未保存的修改。</span>
-          <button type="button" className="dpf-btn dpf-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>保存并返回</button>
-          <button type="button" className="dpf-btn dpf-btn-danger" onClick={onBack}>放弃修改</button>
-          <button type="button" className="dpf-btn" onClick={() => { setConfirmDiscard(false) }}>继续编辑</button>
+          <span>{t('guard.unsaved')}</span>
+          <button type="button" className="dpf-btn dpf-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>{t('guard.saveBack')}</button>
+          <button type="button" className="dpf-btn dpf-btn-danger" onClick={onBack}>{t('guard.discard')}</button>
+          <button type="button" className="dpf-btn" onClick={() => { setConfirmDiscard(false) }}>{t('guard.keepEditing')}</button>
         </div>
       )}
       <textarea
@@ -313,17 +367,17 @@ function FileEditor(props: {
       />
       <div className="dpf-toolbar">
         <button type="button" className="dpf-btn dpf-btn-primary" disabled={content === undefined || busy || (!dirty && !target.create)} onClick={save}>
-          {target.create ? '保存并创建' : '保存'}
+          {target.create ? t('editor.saveNew') : t('editor.save')}
         </button>
         {target.create ? null : confirmDelete
           ? (
             <>
-              <button type="button" className="dpf-btn dpf-btn-danger" disabled={busy} onClick={remove}>确认删除</button>
-              <button type="button" className="dpf-btn" disabled={busy} onClick={() => { setConfirmDelete(false) }}>取消</button>
+              <button type="button" className="dpf-btn dpf-btn-danger" disabled={busy} onClick={remove}>{t('editor.confirmDelete')}</button>
+              <button type="button" className="dpf-btn" disabled={busy} onClick={() => { setConfirmDelete(false) }}>{t('editor.cancel')}</button>
             </>
           )
           : (
-            <button type="button" className="dpf-btn dpf-btn-danger" disabled={content === undefined || busy} onClick={() => { setConfirmDelete(true) }}>删除</button>
+            <button type="button" className="dpf-btn dpf-btn-danger" disabled={content === undefined || busy} onClick={() => { setConfirmDelete(true) }}>{t('editor.delete')}</button>
           )}
         {status === undefined ? null : <span className={status.error ? 'dpf-status dpf-status-error' : 'dpf-status'}>{status.text}</span>}
       </div>
@@ -333,7 +387,7 @@ function FileEditor(props: {
 
 /** shell.overlay 面板主体。 */
 export function ProjectFilesPanel(props: PanelProps): ReactNode {
-  const { api, sessions, store } = props
+  const { api, sessions, store, t } = props
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const cwd = useCurrentCwd(sessions)
   const [overview, setOverview] = useState<OverviewResult | undefined>(undefined)
@@ -351,7 +405,14 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
     setLoading(true)
     setListError(undefined)
     api.overview(cwd)
-      .then(result => { if (!cancelled) setOverview(result) })
+      .then(result => {
+        if (cancelled) return
+        if (isFailure(result)) {
+          setListError(hostText(t, result))
+          return
+        }
+        setOverview(result)
+      })
       .catch((error: unknown) => {
         if (!cancelled) setListError(error instanceof Error ? error.message : String(error))
       })
@@ -363,8 +424,8 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
 
   if (cwd === undefined) {
     return (
-      <PanelShell cwd={undefined} store={store}>
-        <div className="dpf-hint">当前没有打开的会话工作区。<br />打开一个位于项目目录中的会话后,这里会显示该会话实际生效的指引链与技能。</div>
+      <PanelShell cwd={undefined} store={store} t={t}>
+        <div className="dpf-hint">{t('panel.noSession.title')}<br />{t('panel.noSession.body')}</div>
       </PanelShell>
     )
   }
@@ -374,27 +435,28 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
 
   if (state.editing !== undefined) {
     return (
-      <PanelShell cwd={cwd} store={store}>
+      <PanelShell cwd={cwd} store={store} t={t}>
         {state.editing.kind === 'skill'
-          ? <SkillFileEditor api={api} cwd={cwd} target={state.editing} onBack={back} />
-          : <FileEditor api={api} cwd={cwd} target={state.editing} store={store} onBack={back} />}
+          ? <SkillFileEditor api={api} cwd={cwd} target={state.editing} t={t} onBack={back} />
+          : <FileEditor api={api} cwd={cwd} target={state.editing} store={store} t={t} onBack={back} />}
       </PanelShell>
     )
   }
 
   return (
-    <PanelShell cwd={cwd} store={store}>
-      {loading && overview === undefined ? <div className="dpf-hint">加载中…</div> : null}
-      {listError !== undefined ? <div className="dpf-status dpf-status-error">加载失败:{listError}</div> : null}
+    <PanelShell cwd={cwd} store={store} t={t}>
+      {loading && overview === undefined ? <div className="dpf-hint">{t('panel.loading')}</div> : null}
+      {listError !== undefined ? <div className="dpf-status dpf-status-error">{`${t('panel.err.load')}: ${listError}`}</div> : null}
       {overview === undefined ? null : (
         <>
           <div className="dpf-caption">
-            按载入顺序排列;越靠下越具体,对模型的优先级越高。
+            {t('panel.caption')}
           </div>
           {overview.layers.map(layer => (
             <LayerCard
               key={`${layer.scope}:${layer.dir}`}
               layer={layer}
+              t={t}
               onOpen={meta => {
                 store.edit({ scope: layer.scope, dir: layer.dir, name: meta.name, create: false })
               }}
@@ -404,16 +466,15 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
             />
           ))}
           <div className="dpf-footnote">
-            {overview.cwdRel === ''
-              ? '子目录里的指引文件不会预载:模型读写某个子目录中的文件时,该目录的指引才会按需注入。'
-              : '当前工作目录之下的子目录指引不会预载:模型读写该子目录中的文件时才会按需注入。'}
+            {overview.cwdRel === '' ? t('panel.footnote.root') : t('panel.footnote.cwd')}
           </div>
-          <h3 className="dpf-section-title">技能目录</h3>
-          <div className="dpf-caption">技能由 dsh 自动扫描并实时监听,放进目录即生效;此处只展示状态。</div>
+          <h3 className="dpf-section-title">{t('panel.skills.title')}</h3>
+          <div className="dpf-caption">{t('panel.skills.caption')}</div>
           {overview.skills.map(skill => (
             <SkillRootRow
               key={skill.displayPath}
               skill={skill}
+              t={t}
               onOpenSkill={(root, entry) => {
                 store.edit({ kind: 'skill', root, path: entry.path, name: entry.name })
               }}
@@ -427,25 +488,26 @@ export function ProjectFilesPanel(props: PanelProps): ReactNode {
 
 /** 会话头部工具位的开关按钮。 */
 export function ProjectFilesToggle(props: ToggleProps): ReactNode {
-  const { store } = props
+  const { store, t } = props
   const open = useSyncExternalStore(store.subscribe, () => store.getSnapshot().open, () => false)
   return (
     <button
       type="button"
       className={open ? 'dpf-toggle dpf-toggle-active' : 'dpf-toggle'}
       aria-pressed={open}
-      title={`查看/编辑当前会话实际载入的指引链(${BASE_CANDIDATES.join(' / ')} 及本地覆盖层)与技能目录状态`}
+      title={t('toggle.title', { names: BASE_CANDIDATES.join(' / ') })}
       onClick={() => { store.toggle() }}
     >
       <span aria-hidden="true">☰</span>
-      <span>约束文件</span>
+      <span>{t('toggle.label')}</span>
     </button>
   )
 }
 
 /** 一个技能根目录行:有技能时可点击展开技能名清单。 */
-function SkillRootRow({ skill, onOpenSkill }: {
+function SkillRootRow({ skill, t, onOpenSkill }: {
   skill: OverviewResult['skills'][number]
+  t: TFunc
   onOpenSkill: (root: string, entry: { name: string; path: string }) => void
 }): ReactNode {
   const [expanded, setExpanded] = useState(false)
@@ -454,10 +516,10 @@ function SkillRootRow({ skill, onOpenSkill }: {
     <>
       <span className="dpf-row-main">
         <span className="dpf-row-name">{skill.displayPath}/</span>
-        <span className="dpf-chip">{skill.level === 'project' ? '项目级' : '用户级 · 所有项目'}</span>
+        <span className="dpf-chip">{skill.level === 'project' ? t('skill.level.project') : t('skill.level.user')}</span>
       </span>
       <span className="dpf-row-meta">
-        {skill.exists ? `${skill.skillCount ?? 0} 个技能${expandable ? (expanded ? ' ▾' : ' ▸') : ''}` : '未创建'}
+        {skill.exists ? `${t('skill.count', { count: skill.skillCount ?? 0 })}${expandable ? (expanded ? ' ▾' : ' ▸') : ''}` : t('skill.notCreated')}
       </span>
     </>
   )
@@ -477,7 +539,7 @@ function SkillRootRow({ skill, onOpenSkill }: {
               key={entry.path}
               type="button"
               className="dpf-skill-pill dpf-skill-pill-btn"
-              title={`查看/编辑 ${skill.displayPath}/${entry.path}`}
+              title={t('skill.open', { path: `${skill.displayPath}/${entry.path}` })}
               onClick={() => { onOpenSkill(skill.displayPath, entry) }}
             >/{entry.name}</button>
           ))}
@@ -492,9 +554,10 @@ function SkillFileEditor(props: {
   api: ProjectFilesApi
   cwd: string
   target: SkillEditTarget
+  t: TFunc
   onBack: () => void
 }): ReactNode {
-  const { api, cwd, target, onBack } = props
+  const { api, cwd, target, t, onBack } = props
   const [content, setContent] = useState<string | undefined>(undefined)
   const [baseline, setBaseline] = useState('')
   const [meta, setMeta] = useState('')
@@ -510,12 +573,17 @@ function SkillFileEditor(props: {
     api.readSkillFile(cwd, target.root, target.path)
       .then(result => {
         if (cancelled) return
+        if (isFailure(result)) {
+          setContent('')
+          setStatus({ error: true, text: `${t('err.read')}: ${hostText(t, result)}` })
+          return
+        }
         setContent(result.content)
         setBaseline(result.content)
-        setMeta(`最近写入:${formatTime(result.mtimeIso)} · ${formatSize(result.size)}`)
+        setMeta(t('editor.lastWrite', { time: formatTime(result.mtimeIso), size: formatSize(result.size) }))
       })
       .catch((error: unknown) => {
-        if (!cancelled) setStatus({ error: true, text: `读取失败:${error instanceof Error ? error.message : String(error)}` })
+        if (!cancelled) setStatus({ error: true, text: `${t('err.read')}: ${error instanceof Error ? error.message : String(error)}` })
       })
       .finally(() => { if (!cancelled) setBusy(false) })
     return () => { cancelled = true }
@@ -527,12 +595,16 @@ function SkillFileEditor(props: {
     setStatus(undefined)
     api.writeSkillFile(cwd, target.root, target.path, content)
       .then(result => {
+        if (isFailure(result)) {
+          setStatus({ error: true, text: `${t('err.write')}: ${hostText(t, result)}` })
+          return
+        }
         setBaseline(content)
-        setMeta(`最近写入:${formatTime(result.mtimeIso)} · ${formatSize(result.size)}`)
-        setStatus({ error: false, text: '已保存(经引用链接写入的会直达来源文件)' })
+        setMeta(t('editor.lastWrite', { time: formatTime(result.mtimeIso), size: formatSize(result.size) }))
+        setStatus({ error: false, text: t('status.savedSkill') })
       })
       .catch((error: unknown) => {
-        setStatus({ error: true, text: `保存失败:${error instanceof Error ? error.message : String(error)}` })
+        setStatus({ error: true, text: `${t('err.write')}: ${error instanceof Error ? error.message : String(error)}` })
       })
       .finally(() => { setBusy(false) })
   }
@@ -544,21 +616,21 @@ function SkillFileEditor(props: {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
       <div className="dpf-editor-head">
-        <button type="button" className="dpf-btn" onClick={requestBack}>← 返回</button>
+        <button type="button" className="dpf-btn" onClick={requestBack}>{t('editor.back')}</button>
         <span className="dpf-editor-name">
           /{target.name}
-          {dirty ? <span className="dpf-dirty" title="有未保存的修改">●</span> : null}
+          {dirty ? <span className="dpf-dirty" title={t('editor.dirty')}>●</span> : null}
         </span>
       </div>
       <div className="dpf-editor-meta">
-        {content === undefined ? '读取中…' : `${target.root}/${target.path} · ${meta}`}
+        {content === undefined ? t('editor.loading') : `${target.root}/${target.path} · ${meta}`}
       </div>
       {confirmDiscard && (
         <div className="dpf-guard">
-          <span>有未保存的修改。</span>
-          <button type="button" className="dpf-btn dpf-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>保存并返回</button>
-          <button type="button" className="dpf-btn dpf-btn-danger" onClick={onBack}>放弃修改</button>
-          <button type="button" className="dpf-btn" onClick={() => { setConfirmDiscard(false) }}>继续编辑</button>
+          <span>{t('guard.unsaved')}</span>
+          <button type="button" className="dpf-btn dpf-btn-primary" onClick={() => { setConfirmDiscard(false); save() }}>{t('guard.saveBack')}</button>
+          <button type="button" className="dpf-btn dpf-btn-danger" onClick={onBack}>{t('guard.discard')}</button>
+          <button type="button" className="dpf-btn" onClick={() => { setConfirmDiscard(false) }}>{t('guard.keepEditing')}</button>
         </div>
       )}
       <textarea
@@ -575,7 +647,7 @@ function SkillFileEditor(props: {
         }}
       />
       <div className="dpf-toolbar">
-        <button type="button" className="dpf-btn dpf-btn-primary" disabled={!dirty || busy} onClick={save}>保存</button>
+        <button type="button" className="dpf-btn dpf-btn-primary" disabled={!dirty || busy} onClick={save}>{t('editor.save')}</button>
         {status === undefined ? null : <span className={status.error ? 'dpf-status dpf-status-error' : 'dpf-status'}>{status.text}</span>}
       </div>
     </div>

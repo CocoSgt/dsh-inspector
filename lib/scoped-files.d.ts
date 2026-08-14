@@ -35,6 +35,27 @@ export declare const ALL_CANDIDATES: readonly string[];
 export declare const MAX_SOURCE_BYTES = 1048576;
 /** 指引文件的归属层。 */
 export type InstructionScope = 'global' | 'project';
+/**
+ * 用户可见失败的业务状态:宿主端不以抛错表达这类失败(抛错在 RPC 封套侧
+ * 会塌缩成 internal + 裸中文 message),而是把稳定点分 code、中文兜底文案
+ * 与可选插值参数作为数据随结果返回,经 src-json wire 过网。可选字段只在
+ * 实际存在时展开(条件展开;src-json codec 拒绝 undefined)。客户端按 code
+ * 查词典本地化,词典缺键时显示 text 兜底。
+ */
+export interface FailureStatus {
+    /** 判别标记:恒为 false。 */
+    readonly ok: false;
+    /** 稳定点分 code(客户端词典键,如 'read.err.missing')。 */
+    readonly code: string;
+    /** 中文兜底文案(客户端词典缺该 code 时显示)。 */
+    readonly text: string;
+    /** code 文案的插值参数(仅存在时出现)。 */
+    readonly params?: Readonly<Record<string, string>>;
+    /** 展示级别;错误路径恒为 'error'。 */
+    readonly level: 'error';
+}
+/** 任一 RPC 方法的返回:成功数据或失败状态。 */
+export type RpcOutcome<T> = T | FailureStatus;
 /** 一个指引文件的地址:层 + 项目根相对目录('' 为根;global 层恒 '')+ 文件名。 */
 export interface FileAddress {
     readonly scope: InstructionScope;

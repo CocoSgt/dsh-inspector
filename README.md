@@ -1,144 +1,205 @@
-# dsh-context-inspector(插件三·约束文件面板)
+# dsh-context-inspector
 
-DeepSeek Harness(dsh)的第三方插件:在 Web 界面右侧打开一个「约束文件」面板,
-按 harness **真实的载入顺序**展示并管理当前会话的指引链——全局
-`$DSH_HOME/AGENTS.md` → 项目根 → … → 会话 cwd 的每一级目录——外加四个技能根
-目录的状态。面板的信息架构完全复刻官方 `dsh-agent-instructions` 的发现算法,
-所见即模型所得。
+[简体中文](README.zh-CN.md) | English
 
-打开位于某个项目目录中的会话后,点会话头部的「约束文件」按钮即可开关面板;
-面板自动跟随当前会话的工作区目录。
+A third-party plugin for DeepSeek Harness (dsh): an "Instruction Files" panel on
+the right side of the Web UI that shows — and manages — the instruction chain
+actually in effect for the current session, in the harness's **real load
+order**: global `$DSH_HOME/AGENTS.md` → project root → … → the session's cwd,
+one directory level at a time — plus the status of the four skill roots. The
+information architecture mirrors the official `dsh-agent-instructions`
+discovery algorithm exactly: what you see is what the model gets.
 
-## 指引链模型(与 harness 一字不差)
+Open a session whose workspace sits in a project directory, then toggle the
+"Instruction Files" button in the session header; the panel follows the current
+session's workspace directory automatically. The UI ships in Chinese and
+English (follows the harness language preference).
 
-面板展示的层级、去重与状态标注都对齐 `packages/context/agent-instructions`
-的真实行为:
+## The instruction-chain model (matches the harness exactly)
 
-1. **全局层**:`$DSH_HOME/AGENTS.md`(默认 `~/.dsh/AGENTS.md`)。只认
-   AGENTS.md,对所有会话生效,永远最先载入。
-2. **项目链**:从会话 cwd 向上找最近含 `.git` 的目录作为项目根(找不到则
-   cwd 即根);**项目根 → cwd 的每一级目录**都探测 4 个候选:`AGENTS.md`、
-   `CLAUDE.md`(基础)与 `AGENTS.local.md`、`CLAUDE.local.md`(本地覆盖层,
-   惯例不入库)。存在的全部载入;同目录内去掉首尾空白后内容相同的只保留最
-   先的候选(面板标注「与 X 相同 · 折叠为一份」)。
-3. **顺序即优先级**:从全局到 cwd 由宽到专,模型被告知「更具体的指引优先」;
-   面板按此顺序排列并注明。字节预算超限时 harness 先省略最宽的;单文件超过
-   1MB 直接被忽略(面板标注「超 1MB · 不会载入」)。
-4. **子目录按需注入**:cwd 之下的子目录指引不预载,模型读写该子目录中的文件
-   时才作为「附加指引」注入——面板脚注对此有说明,不把不预载的文件混进链里。
+The layers, deduplication, and status flags shown by the panel align with the
+real behavior of `packages/context/agent-instructions`:
 
-**为什么没有 hooks.json / .env / .sessions 了**:hooks 桥默认不挂载且
-`configPath` 必填无默认文件名(它是部署配置,不是项目文件);`.env` 与
-`.sessions` 相对 **dsh 启动目录**、进程级生效,与会话工作区无关。把它们摆在
-「项目文件」清单里会诱导用户创建根本不会被读取的文件,因此从面板中移除。
-GEMINI.md、.cursorrules 等其它代理工具的文件 dsh 不读取,同样不在面板中。
+1. **Global layer**: `$DSH_HOME/AGENTS.md` (default `~/.dsh/AGENTS.md`). Only
+   AGENTS.md is recognized; it applies to every session and always loads first.
+2. **Project chain**: starting from the session cwd, the nearest ancestor
+   containing `.git` is the project root (the cwd itself if none is found);
+   **every directory level from the project root down to the cwd** is probed
+   for 4 candidates: `AGENTS.md` and `CLAUDE.md` (base), plus
+   `AGENTS.local.md` and `CLAUDE.local.md` (local overlays, by convention not
+   committed). Every candidate that exists is loaded; within one directory,
+   candidates whose content is identical after trimming surrounding whitespace
+   are collapsed into the first one (the panel flags this as
+   "Same as X · collapsed to one").
+3. **Order is priority**: global → cwd goes broad to specific, and the model is
+   told that more specific instructions win; the panel is ordered and annotated
+   accordingly. When the byte budget overflows, the harness omits the broadest
+   entries first; a single file over 1 MB is ignored outright (the panel flags
+   it as "Over 1 MB · not loaded").
+4. **Subdirectory injection is on demand**: instruction files in subdirectories
+   below the cwd are not preloaded; they are injected as additional
+   instructions only when the model reads or writes a file inside that
+   subdirectory — the panel footnote explains this instead of mixing
+   non-preloaded files into the chain.
 
-## 功能
+**Why there is no hooks.json / .env / .sessions**: the hooks bridge is not
+mounted by default and its `configPath` is required with no default file name
+(it is deployment configuration, not a project file); `.env` and `.sessions`
+are resolved against the **dsh launch directory** and take effect
+process-wide, unrelated to the session workspace. Listing them as "project
+files" would invite users to create files nothing ever reads, so they were
+removed from the panel. Files of other agent tools (GEMINI.md, .cursorrules,
+…) are not read by dsh and are equally absent.
 
-- **指引链视图**:每层一张卡片,标注层级身份(全局·所有会话 / 项目根 /
-  当前工作目录),列出已存在的候选文件与状态徽标(本地不入库 / 重复折叠 /
-  超限忽略),显示最近写入时间与大小。
-- **就地新建**:每层卡片右上「＋ 新建」展开缺失候选(AGENTS.md 标注推荐,
-  local 候选标注建议 gitignore),预填模板,保存才落盘。
-- **编辑器脏态守卫**:未保存返回时弹出「保存并返回 / 放弃修改 / 继续编辑」,
-  不静默丢弃;标题栏显示未保存圆点;支持 Cmd/Ctrl+S 保存;保存后提示
-  「更新会在会话的下一步注入」(harness 会在下一步对账并注入变更)。
-- **技能目录状态**:项目根 `.dsh/skills`、`.agents/skills` 与用户级
-  `~/.dsh/skills`、`~/.agents/skills` 四个技能根,展示存在性与技能数
-  (SKILL.md 计数,限深限量扫描);技能内容管理交给 dsh-skill-manager。
-- **右侧浮动面板**:注册在 `shell.overlay`(additive 列表槽);会话头部开关
-  注册在 `conversation.session.header.utilities`;切换会话自动跟随新工作区。
-- **路径安全**:读写地址是「cwd + scope + dir + name」四元组。`name` 必须命中
-  4 个候选文件名;`dir` 必须命中按 cwd **现算**出的项目链目录集合(global 层
-  只接受 AGENTS.md);最终路径 resolve 后再做前缀校验。
+## Features
 
-## 架构
+- **Instruction-chain view**: one card per layer, tagged with its identity
+  (Global · all sessions / Project root / Current working directory), listing
+  existing candidate files with status chips (local/not committed, duplicate
+  collapsed, oversized-ignored) plus last-write time and size.
+- **In-place creation**: the "+ New" button on each layer card expands the
+  missing candidates (AGENTS.md marked recommended, local candidates marked
+  gitignore-suggested), pre-seeds a template — in the current UI language —
+  and writes to disk only on save. Templates seed the editor only for files
+  that do not exist yet; editing an existing file never re-templates it.
+- **Editor dirty guard**: navigating back with unsaved changes offers
+  "Save and go back / Discard changes / Keep editing" — nothing is dropped
+  silently; an unsaved dot shows in the title bar; Cmd/Ctrl+S saves; after a
+  save the panel notes that "updates are injected at the session's next step"
+  (the harness reconciles and injects the change on the next step).
+- **Skill directory status**: the four skill roots — project-level
+  `.dsh/skills` and `.agents/skills`, user-level `~/.dsh/skills` and
+  `~/.agents/skills` — with existence and skill counts (SKILL.md counting,
+  depth- and entry-capped scan). Skill `SKILL.md`/flat `.md` files can be
+  viewed and edited in place; skill files reached through symlinks write
+  through to their source file by design.
+- **Floating right panel**: registered on `shell.overlay` (additive list
+  slot); the session-header toggle is registered on
+  `conversation.session.header.utilities`; switching sessions follows the new
+  workspace automatically.
+- **Path safety**: read/write addresses are the quadruple
+  `cwd + scope + dir + name`. `name` must hit the 4-candidate whitelist;
+  `dir` must hit the project-chain directory set recomputed from the cwd at
+  call time (the global layer accepts only AGENTS.md); skill-file access is
+  limited to `.md` inside the two project skill roots or the two user skill
+  roots; the resolved path is prefix-checked as defense in depth.
+- **Bilingual UI (zh/en)**: dictionaries are registered into the harness
+  locale service; the panel and toggle read the standard reactive `t` seat
+  and re-render on language switch. User-visible host failures travel the
+  wire as stable dot-codes (`read.err.missing`, `address.err.offChain`, …)
+  with the Chinese text as fallback, and are localized client-side.
 
-一个 npm 包,两个面:
+## Architecture
 
-- **宿主端**(`lib/index.js`,本包主入口):`ProjectFilesGateway` 继承
-  `TypertRemoteService`(来自 `@deepseek-ai/dsh-typert-protocol`),暴露
-  `projectFiles/overview|readFile|writeFile|removeFile` 四个 RPC 端点,直接用
-  `node:fs` 探测/读写指引链。层级发现(`.git` 标记上溯、候选顺序、trimmed
-  内容去重、1MB 上限)与 harness 保持一致。第三方双副本场景下 SRC 发现失明,
-  因此同时把弱(src-json)清单注册进宿主 typert registry。
-- **浏览器端**(`lib/client.js`,`exports["./client"]`):闭包工厂 bundle。
-  启动时把手写的 strict zod 调用描述符 `$mount` 到 `ctx.remote`,再向两个槽
-  注册 React UI;面板通过 `ctx.sessions` 的列表快照读取当前会话的 `cwd`。
+One npm package, two faces:
 
-安装产物 `lib/` 已预构建并随仓库提交,git 安装无需跑构建脚本。
+- **Host side** (`lib/index.js`, the package main entry): `ProjectFilesGateway`
+  extends `TypertRemoteService` (from `@deepseek-ai/dsh-typert-protocol`) and
+  exposes the six RPC endpoints `projectFiles/overview`, `readFile`,
+  `readSkillFile`, `writeSkillFile`, `writeFile`, and `removeFile`, probing and
+  writing the instruction chain directly with `node:fs`. Layer discovery
+  (`.git` marker walk-up, candidate order, trimmed-content dedup, 1 MB cap)
+  matches the harness. Under the third-party dual-copy scenario SRC discovery
+  is blind, so a weak (src-json) manifest is also registered into the host
+  typert registry. User-visible failures are returned as data (see above), not
+  thrown.
+- **Browser side** (`lib/client.js`, `exports["./client"]`): a closure-factory
+  bundle. On startup it `$mount`s hand-written strict zod call descriptors onto
+  `ctx.remote`, registers its zh/en dictionaries into `ctx.locale`, and then
+  registers the React UI onto two slots (each registration declares
+  `locale:` so components receive the `t` seat); the panel reads the current
+  session's `cwd` from the `ctx.sessions` list snapshot.
 
-## 安装
+The built `lib/` output is pre-built and committed with the repository, so git
+installs need no build step.
+
+## Install
 
 ```sh
-# 本地路径
+# local path
 dsh plugin --profile web add /path/to/dsh-context-inspector
-# 或 GitHub(私有仓库需先 gh auth login)
+# or GitHub (private repos need gh auth login first)
 dsh plugin --profile web add github:CocoSgt/dsh-context-inspector
 ```
 
-> 注意:自建 profile 的 `~/.dsh/profiles/<name>/package.json` 里
-> `dsh.profile.bundles` 必须包含 `@deepseek-ai/dsh-base` 与
-> `@deepseek-ai/dsh-web-app`,否则启动会静默挂起。
+> Note: a self-built profile's `~/.dsh/profiles/<name>/package.json` must list
+> `@deepseek-ai/dsh-base` and `@deepseek-ai/dsh-web-app` in
+> `dsh.profile.bundles`, otherwise startup hangs silently.
 
-安装后重启 `dsh web`(或对应的 web 启动命令)即可。
+Restart `dsh web` (or your web launch command) after installing.
 
-卸载:
+Uninstall:
 
 ```sh
 dsh plugin --profile web remove dsh-context-inspector
 ```
 
-## 使用
+## Usage
 
-1. 打开一个工作区在项目目录中的会话(新建会话时选择该目录,或恢复旧会话)。
-2. 点击会话头部的「约束文件」按钮,右侧弹出面板,顶部显示工作区路径。
-3. 面板按载入顺序展示指引链;点某个文件进入编辑,「＋ 新建」就地创建缺失
-   候选;删除需二次确认,未保存返回有脏态守卫。
+1. Open a session whose workspace is a project directory (pick the directory
+   when creating the session, or restore an old one).
+2. Click the "Instruction Files" button in the session header; the panel opens
+   on the right with the workspace path at the top.
+3. The panel lists the instruction chain in load order; click a file to edit
+   it, or "+ New" to create a missing candidate in place; deletion asks for
+   confirmation and going back with unsaved changes raises the dirty guard.
 
-没有当前会话(或会话没有工作区目录)时,面板会提示打开一个项目会话。
+With no current session (or a session without a workspace directory), the
+panel prompts to open a project session.
 
-## 开发
+## Development
 
 ```sh
 pnpm install
 pnpm run typecheck   # tsc --noEmit
-pnpm run build       # tsc(宿主端,降级装饰器)+ tsdown(浏览器 bundle)
+pnpm run build       # tsc (host side, downleveled decorators) + tsdown (browser bundle)
 ```
 
-源码结构:
+Source layout:
 
 ```
 src/
-  index.ts         宿主端网关服务(@Remote 方法 = RPC 端点 + 弱清单注册)
-  scoped-files.ts  指引链模型与共享类型(候选清单/层级/概览结构)
+  index.ts         Host-side gateway service (@Remote methods = RPC endpoints
+                   + weak manifest registration + failure-code protocol)
+  scoped-files.ts  Instruction-chain model and shared types (candidate list,
+                   layers, overview shapes, FailureStatus)
   client/
-    index.ts       浏览器插件主体($mount + slot 注册)
-    descriptors.ts 手写 strict 调用描述符(zod)
-    panel.tsx      指引链面板、编辑器与头部开关组件
-    store.ts       面板开/关与编辑目标状态
-    styles.ts      注入式 CSS(dpf- 前缀,--dsw-alias-* 设计令牌)
-    types.ts       客户端最小服务类型面
+    index.ts       Browser plugin body ($mount + dictionary registration +
+                   slot registration)
+    locales.ts     zh/en dictionaries (zh is the key-set source of truth;
+                   UI copy, creation templates, and host failure codes)
+    descriptors.ts Hand-written strict call descriptors (zod)
+    panel.tsx      Instruction-chain panel, editors, and header toggle
+    store.ts       Panel open/close and edit-target state
+    styles.ts      Injected CSS (dpf- prefix, --dsw-alias-* design tokens)
+    types.ts       Minimal client-side service type surface (incl. locale)
 ```
 
-注意:宿主端方法的**参数名就是 RPC wire 字段名**(Gateway SRC 模式靠
-`Function.prototype.toString` 读取),因此公开方法保持「简单标识符参数」形态,
-构建不得压缩改写参数名(本仓库构建未开压缩)。RPC 方法名是 `removeFile` 而非
-`remove`:客户端命名空间服务的原型上已占用 `remove`,重名会在挂载时被网关拒绝。
+Note: the host-side methods' **parameter names are the RPC wire field names**
+(the Gateway SRC mode reads them via `Function.prototype.toString`), so public
+methods keep the plain-identifier parameter form and builds must not minify
+parameter names (this repository's build does not minify). The RPC method is
+named `removeFile`, not `remove`: `remove` is already taken on the client
+namespace service's prototype, and a name clash would be rejected by the
+gateway at mount time.
 
-## 已知限制
+## Known limitations
 
-- 面板位置是 shell.overlay 里的固定右侧浮动栏,不是可拖拽的原生分栏;宽度
-  固定 `min(440px, 92vw)`。
-- 宿主端信任浏览器传来的会话 cwd(本地面板自用场景);cwd 必须是已存在的
-  绝对路径目录,但不校验它是否出现在 dsh 的 workspace 列表里。
-- 「生效中」以存在性 + harness 规则(去重/超限)推断,不读取会话事件流;
-  会话实际的字节预算截断(64KB 基线预算)不在面板中反映。
-- cwd 之下子目录的按需注入状态(哪些已被触碰注入)不展示,只有脚注说明。
-- 编辑器是纯文本框,无 Markdown 预览/语法高亮。
-- 面板不监听文件系统变化;从编辑视图返回会重新拉取,编辑期间外部改动不会
-  自动同步。
+- The panel is a fixed floating right column in `shell.overlay`, not a
+  draggable native pane; the width is fixed at `min(440px, 92vw)`.
+- The host trusts the session cwd sent by the browser (a local-panel use
+  case); the cwd must be an existing absolute directory path, but it is not
+  checked against dsh's workspace list.
+- "In effect" is inferred from existence + harness rules (dedup/size cap);
+  the session's actual byte-budget truncation (64 KB baseline) is not
+  reflected in the panel.
+- The on-demand injection state of subdirectories below the cwd (which have
+  been touched and injected) is not shown; only the footnote explains it.
+- The editor is a plain textarea, with no Markdown preview or syntax
+  highlighting.
+- The panel does not watch the file system; returning from the edit view
+  re-fetches, but external changes during editing are not synced live.
 
-## 许可
+## License
 
 MIT
